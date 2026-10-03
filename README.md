@@ -60,14 +60,14 @@ Geo-Jamaah_Server/
 ### Prasyarat
 - Node.js 20+
 - PostgreSQL 15+ (atau Docker)
-- npm
+- pnpm 9+ (`npm i -g pnpm` atau `corepack enable`)
 
 ### Instalasi
 
 ```bash
 git clone <url-repo>
 cd Geo-Jamaah_Server
-npm install
+pnpm install
 cp .env.example .env
 ```
 
@@ -90,26 +90,26 @@ MINIO_BUCKET="bukti-izin"
 ### Migrasi Database
 
 ```bash
-npx prisma migrate dev --name init
-npx prisma generate
+pnpm prisma migrate dev --name init
+pnpm prisma generate
 ```
 
 ### Menjalankan Server
 
 ```bash
 # development
-npm run start:dev
+pnpm start:dev
 
 # production
-npm run build
-npm run start:prod
+pnpm build
+pnpm start:prod
 ```
 
 ### Testing
 
 ```bash
-npm run test
-npm run test:e2e
+pnpm test
+pnpm test:e2e
 ```
 
 ## Format Response
@@ -142,7 +142,3 @@ Contoh: `feat(presensi): add haversine geofencing validation`
 ## Status Project
 
 Tahap awal: backend contract sudah disusun, implementasi sedang berjalan.
-
-## Lisensi
-
-Belum ditentukan.
