@@ -16,7 +16,7 @@ Error:
 ## 1. POST /v1/auth/login
 - Akses: Public
 - Body: `{ "username": string, "password": string, "device_id": string }`
-- 201: `{ "access_token": string, "user": { id_pengguna, username, role, profil } }`
+- 201: `{ "token_type": "Bearer", "access_token": string, "user": { id_pengguna, username, role, profil } }`
 - Error: 401 `ERR_INVALID_CREDENTIALS`, 401 `ERR_DEVICE_MISMATCH`
 
 ## 2. POST /v1/presensi
