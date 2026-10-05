@@ -59,7 +59,7 @@ model Musyrif {
   mahasantri  Mahasantri[]
   izin        Izin[]
 
-  @@map("musryif")
+  @@map("musyrif")
 }
 
 model Mahasantri {
@@ -139,4 +139,17 @@ model Izin {
 
   @@index([id_musyrif, status_persetujuan])
   @@map("izin")
+}
+
+model ActivityLog {
+  id_log     String   @id @default(uuid())
+  username   String   @db.VarChar(100)
+  role       Role
+  modul      String   @db.VarChar(100)
+  aktivitas  String
+  created_at DateTime @default(now())
+
+  @@index([role, created_at])
+  @@index([username])
+  @@map("activity_logs")
 }
