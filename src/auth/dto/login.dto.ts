@@ -5,31 +5,37 @@ export class LoginDto {
     @IsNotEmpty()
     @IsString()
     @MaxLength(100)
-    username: string;
+    username!: string;
 
     @IsNotEmpty()
     @IsString()
     @MaxLength(100)
-    password: string;
+    password!: string;
 
     @IsNotEmpty()
     @IsString()
-    device_id: string;
+    device_id!: string;
+}
+
+export class MusyrifSummaryDto {
+    id_musyrif!: string;
+    nama!: string;
 }
 
 export class MusyrifProfileDto {
-    id_musyrif: string;
-    nama: string;
-    no_telepon: string;
+    id_musyrif!: string;
+    nama!: string;
+    no_telepon!: string;
 }
 
 export class MahasantriProfileDto {
-    nim: string;
-    nama: string;
-    kamar: string;
-    status_aktif: boolean;
-    musyrif: MusyrifProfileDto;
+    nim!: string;
+    nama!: string;
+    kamar!: string;
+    status_aktif!: boolean;
+    musyrif!: MusyrifSummaryDto;
 }
+
 
 export class UserDto {
     id_pengguna: string;
