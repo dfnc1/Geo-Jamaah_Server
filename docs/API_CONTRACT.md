@@ -35,12 +35,12 @@ Error:
 - Validasi: latitude -90..90, longitude -180..180, akurasi_meter >= 0.
 - 201: `{ "status_presensi": "Hadir", "jarak_meter": 23.4 }`
 - Error:
-    - 400 `ERR_GEOFENCE_RADIUS_EXCEEDED`
-    - 400 `ERR_TIME_WINDOW_INVALID`
-    - 400 `ERR_MOCK_LOCATION`
-    - 400 `ERR_GPS_ACCURACY_LOW`
-    - 404 `ERR_JADWAL_NOT_FOUND` / `ERR_MASJID_NOT_FOUND`
-    - 409 `ERR_ALREADY_PRESENT`
+  - 400 `ERR_GEOFENCE_RADIUS_EXCEEDED`
+  - 400 `ERR_TIME_WINDOW_INVALID`
+  - 400 `ERR_MOCK_LOCATION`
+  - 400 `ERR_GPS_ACCURACY_LOW`
+  - 404 `ERR_JADWAL_NOT_FOUND` / `ERR_MASJID_NOT_FOUND`
+  - 409 `ERR_ALREADY_PRESENT`
 
 ## 3. POST /v1/izin
 - Akses: Mahasantri
@@ -77,6 +77,15 @@ Error:
     }
   ]
   ```
+
+## 6. GET /v1/admin/activity-logs
+- Akses: Admin
+- Query: `role` (opsional), `username` (opsional), `modul` (opsional), `from`, `to` (opsional, ISO date), `page`, `limit`
+- 200: daftar log terbaru dulu
+  ```json
+  [{ "id_log": "uuid", "username": "string", "role": "Admin", "modul": "Masjid", "aktivitas": "Mengubah radius toleransi", "created_at": "2026-10-05T08:00:00.000Z" }]
+  ```
+- Error: 401, 403
 
 ## Endpoint Tambahan yang Dibutuhkan (belum ada di diskusi)
 Fitur di PRD yang belum punya endpoint. Perlu diputuskan sebelum coding:

@@ -76,11 +76,34 @@ erDiagram
         string bukti_lampiran
         enum status_persetujuan
     }
+    ActivityLog {
+        string id_log PK
+        string username
+        enum role
+        string modul
+        string aktivitas
+        datetime created_at
+    }
 ```
+
+`activity_logs` berdiri sendiri (tanpa foreign key). `username` dan `role` disimpan sebagai salinan, supaya log tetap utuh walaupun akun dihapus.
+
+## Daftar Tabel (8)
+| No | Tabel | Kategori |
+|---|---|---|
+| 1 | pengguna | Akun / Auth |
+| 2 | mahasantri | Master Data |
+| 3 | musyrif | Master Data |
+| 4 | jadwal_sholat | Master Data |
+| 5 | masjid | Master Data |
+| 6 | presensi | Transaksi Utama |
+| 7 | izin | Transaksi |
+| 8 | activity_logs | Audit Trail |
 
 ## Constraint Penting
 - `Presensi`: unique `(nim, id_jadwal, tanggal)` untuk mencegah double presensi.
 - `Pengguna.username` dan `Pengguna.device_id` unique.
+- `activity_logs`: index `(role, created_at)` dan `(username)` untuk laporan audit.
 - Hapus `Pengguna` ikut menghapus profil `Mahasantri` / `Musyrif` (cascade).
 
 ## Enum
@@ -138,6 +161,8 @@ model Pengguna {
   device_id   String?     @unique
   mahasantri  Mahasantri?
   musyrif     Musyrif?
+
+  @@map("pengguna")
 }
 
 model Musyrif {
@@ -148,6 +173,8 @@ model Musyrif {
   pengguna    Pengguna     @relation(fields: [id_pengguna], references: [id_pengguna], onDelete: Cascade)
   mahasantri  Mahasantri[]
   izin        Izin[]
+
+  @@map("musyrif")
 }
 
 model Mahasantri {
@@ -161,6 +188,8 @@ model Mahasantri {
   musyrif      Musyrif    @relation(fields: [id_musyrif], references: [id_musyrif])
   presensi     Presensi[]
   izin         Izin[]
+
+  @@map("mahasantri")
 }
 
 model JadwalSholat {
@@ -171,6 +200,8 @@ model JadwalSholat {
   waktu_mulai_presensi String
   waktu_akhir_presensi String
   presensi             Presensi[]
+
+  @@map("jadwal_sholat")
 }
 
 model Masjid {
@@ -180,6 +211,8 @@ model Masjid {
   longitude        Float
   radius_toleransi Float      // meter
   presensi         Presensi[]
+
+  @@map("masjid")
 }
 
 model Presensi {
@@ -203,6 +236,8 @@ model Presensi {
 
   @@unique([nim, id_jadwal, tanggal])
   @@index([nim, tanggal])
+
+  @@map("presensi")
 }
 
 model Izin {
@@ -219,5 +254,20 @@ model Izin {
   musyrif    Musyrif    @relation(fields: [id_musyrif], references: [id_musyrif])
 
   @@index([id_musyrif, status_persetujuan])
+
+  @@map("izin")
+}
+
+model ActivityLog {
+  id_log     String   @id @default(uuid())
+  username   String   @db.VarChar(100)
+  role       Role
+  modul      String   @db.VarChar(100)
+  aktivitas  String
+  created_at DateTime @default(now())
+
+  @@index([role, created_at])
+  @@index([username])
+  @@map("activity_logs")
 }
 ```

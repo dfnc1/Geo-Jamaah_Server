@@ -61,12 +61,21 @@ Aturan perhitungan:
 | Verifikasi izin | - | ya | - |
 | Lihat santri kritis | - | ya | - |
 | CRUD Masjid & Jadwal | - | - | ya |
+| Lihat activity log | - | - | ya |
 
 ## BR-10 Keamanan
 - Password di-hash dengan bcrypt.
 - Autentikasi JWT via header `Authorization: Bearer <token>`, masa berlaku 7 hari. Refresh token belum dipakai.
 - Role dicek dengan `@Roles()` dan `RolesGuard`.
 - Lampiran izin disimpan di MinIO, hanya object key yang disimpan di database. File diakses lewat presigned URL.
+
+## BR-11 Audit Trail
+- Aksi penting dicatat otomatis ke `activity_logs` oleh NestJS Interceptor: login, presensi, pengajuan izin, verifikasi izin, dan perubahan master data (Masjid, JadwalSholat).
+- Setiap log berisi `username`, `role`, `modul`, `aktivitas`, dan `created_at`.
+- Log tidak boleh berisi password, token, atau data sensitif lain.
+- Log bersifat append-only: tidak ada endpoint untuk mengubah atau menghapus.
+- Kegagalan menulis log tidak boleh menggagalkan request utama.
+- Hanya Admin yang boleh melihat log.
 
 ## Catatan Teknis
 - Zona waktu operasional: Asia/Jakarta (WIB).
