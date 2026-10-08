@@ -1,4 +1,4 @@
-import {IsNotEmpty, IsString, MaxLength} from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
 import {Role} from "../../../generated/prisma/enums";
 
 export class LoginDto {
@@ -12,7 +12,7 @@ export class LoginDto {
     @MaxLength(100)
     password!: string;
 
-    @IsNotEmpty()
+    @IsOptional()
     @IsString()
     device_id!: string;
 }

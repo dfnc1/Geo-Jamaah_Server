@@ -74,6 +74,7 @@ model Mahasantri {
   presensi     Presensi[]
   izin         Izin[]
 
+  @@index([id_musyrif])
   @@map("mahasantri")
 }
 
@@ -120,7 +121,7 @@ model Presensi {
   masjid     Masjid       @relation(fields: [id_masjid], references: [id_masjid])
 
   @@unique([nim, id_jadwal, tanggal])
-  @@index([nim, tanggal])
+  @@index([nim, tanggal, id_jadwal])
   @@map("presensi")
 }
 
@@ -137,7 +138,7 @@ model Izin {
   mahasantri Mahasantri @relation(fields: [nim], references: [nim])
   musyrif    Musyrif    @relation(fields: [id_musyrif], references: [id_musyrif])
 
-  @@index([id_musyrif, status_persetujuan])
+  @@index([id_musyrif, status_persetujuan, nim])
   @@map("izin")
 }
 
