@@ -2,7 +2,7 @@ import { ReflectableDecorator, Reflector } from '@nestjs/core';
 
 export enum ROLE {
   MAHASANTRI = 'MAHASANTRI',
-  MUSYRIF = 'MUSYR  IF',
+  MUSYRIF = 'MUSYRIF',
 }
 
 export const Roles: ReflectableDecorator<ROLE> =
