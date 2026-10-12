@@ -1,9 +1,10 @@
 {
-  "name": "Geo-Jamaah_Server",
+  "name": "geo-jamaah-server",
   "version": "0.0.1",
   "description": "",
   "author": "",
   "private": true,
+  "packageManager": "pnpm@12.11.2",
   "license": "UNLICENSED",
   "scripts": {
     "build": "nest build",
@@ -53,8 +54,6 @@
     "@types/supertest": "^7.0.0",
     "dotenv": "^18.0.5",
     "eslint": "^9.18.0",
-    "eslint-config-prettier": "^10.0.1",
-    "eslint-plugin-prettier": "^5.2.2",
     "globals": "^17.0.0",
     "jest": "^30.0.0",
     "prettier": "^3.9.9",
