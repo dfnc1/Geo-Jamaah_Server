@@ -2,6 +2,7 @@ import {
   ForbiddenException,
   Injectable,
   UnauthorizedException,
+  BadRequestException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
@@ -74,6 +75,14 @@ export class AuthService {
           error: 'ERR_ACCOUNT_INACTIVE',
         });
       }
+
+      if (!dto.device_id) {
+        throw new BadRequestException({
+          message: 'device_id wajib diisi untuk Mahasantri',
+          error: 'ERR_DEVICE_ID_REQUIRED',
+        });
+      }
+
       await this.bindDevice(user.id_pengguna, user.device_id, dto.device_id);
     }
 
