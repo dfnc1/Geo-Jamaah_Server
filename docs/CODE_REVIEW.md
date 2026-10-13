@@ -1,133 +1,65 @@
-# Hasil Review Lanjutan (Follow-up Code Review) - Geo-Jamaah_Server
+# Action Items & Code Review (Outstanding Items) - Geo-Jamaah_Server
 
-Dokumen ini berisi hasil evaluasi tindak lanjut terhadap review sebelumnya (`docs/CODE_REVIEW.md`), perbandingan status implementasi saat ini, serta penulisan ulang temuan yang **belum selesai** ditambah **temuan/bug baru** yang muncul pada kode terkini.
-
----
-
-## 📊 1. Matriks Perbandingan Status Implementasi
-
-| Area / Poin Review Sebelumnya | Status Terkini | Catatan Evaluasi |
-| :--- | :---: | :--- |
-| **Prisma Connection Pool** | ✅ **Selesai** | `PrismaService` kini menginisialisasi `Pool` (`pg`) tersendiri dan menutupnya di `onModuleDestroy()`. |
-| **JWT Expiration (BR-10)** | ✅ **Selesai** | Telah diubah ke `'1w'` (7 hari) pada `auth.module.ts`. |
-| **Index FK Mahasantri** | ✅ **Selesai** | `@@index([id_musyrif])` telah dipasang pada model `Mahasantri`. |
-| **Index FK Presensi & Izin** | ❌ **Belum Selesai** | `Presensi(id_jadwal, tanggal)` dan `Izin(nim)` belum ditambahkan ke `schema.prisma`. |
-| **Validation `LoginDto.device_id`** | ⚠️ **Parsial & Muncul Bug** | Dibuat opsional, namun verifikasi wajib `device_id` untuk Mahasantri hilang di level service. |
-| **Role Guard & `@Roles()`** | ⚠️ **Parsial & Bug Fatal** | File dibuat, namun terdapat typo enum, kesalahan objek Request, decorator single-role, dan ketiadaan `@Injectable()`. |
-| **Verifikasi Status Aktif di JWT** | ❌ **Belum Selesai** | `JwtStrategy` belum memvalidasi `status_aktif` santri secara real-time. |
-| **Endpoint Reset Device** | ❌ **Belum Selesai** | Belum ada mekanisme unbind/reset `device_id` santri. |
-| **Mitigasi Brute Force (Query Berat)** | ❌ **Belum Selesai** | `validateUser` masih melakukan `findUnique` dengan relasi lengkap sebelum memverifikasi password. |
-| **Whitelist di `ValidationPipe`** | ❌ **Belum Selesai** | `main.ts` masih menginisialisasi `new ValidationPipe()` tanpa parameter `whitelist` & `transform`. |
-| **Path Alias di `tsconfig.json`** | ❌ **Belum Selesai** | Belum ada konfigurasi path alias untuk `@generated/*` atau `@src/*`. |
+Dokumen ini memuat daftar temuan, bug, serta fitur yang **belum diselesaikan / masih bermasalah** pada codebase terkini. Poin yang telah selesai (Connection Pool Prisma, JWT expiration 7 hari, Whitelist ValidationPipe, dan validasi device_id Mahasantri saat login) telah disaring agar fokus pengerjaan terarah pada backlog yang tersisa.
 
 ---
 
-## 🔴 2. Temuan Kritis Baru (Critical & Fatal Bugs)
+## 📊 Matriks Backlog & Prioritas Pengerjaan
 
-Bagian ini menyoroti bug yang muncul dari implementasi terbaru pada commit terakhir:
-
-### 1. Bug Fatal pada `RolesGuard` (`src/auth/guard/Roles.guard.ts`)
-- **Masalah 1 — Objek Request Tertukar:**
-  ```typescript
-  const user = context.switchToHttp().getRequest();
-  return requiredRoles.includes(user.role);
-  ```
-  `getRequest()` mengembalikan instance objek HTTP Request Express (`req`), **bukan** user profile. Objek user hasil autentikasi JWT diletakkan oleh Passport pada properti `req.user`. Memanggil `user.role` pada objek request akan selalu menghasilkan `undefined`.
-- **Masalah 2 — Missing `@Injectable()`:**
-  Class `RolesGuard` belum memiliki decorator `@Injectable()`, yang dapat memicu error dependensi pada container IoC NestJS.
-- **Masalah 3 — Null Pointer Exception:**
-  Jika endpoint dipasang `RolesGuard` tanpa `JwtAuthGuard` atau jika user tidak login, `req.user` bernilai `undefined`, pemanggilan properti role akan melempar `TypeError: Cannot read properties of undefined`.
-- **Masalah 4 — Penamaan File:**
-  File dinamai `Roles.guard.ts` (PascalCase), inkonsisten dengan berkas guard lain seperti `jwt-auth.guard.ts` (kebab-case). Di sistem operasi Linux (case-sensitive), perbedaan ini rawan memicu bug import.
-
-### 2. Typo & Inkonsistensi Enum pada `@Roles()` Decorator (`src/auth/decorators/roles.decorator.ts`)
-- **Typo Fatal pada Enum:**
-  ```typescript
-  export enum ROLE {
-    MAHASANTRI = 'MAHASANTRI',
-    MUSYRIF = 'MUSYR  IF', // ⚠️ Typo: ada dua spasi di tengah kata!
-  }
-  ```
-- **Inkonsistensi Nilai Enum:**
-  Di schema database Prisma, enum `Role` bernilai PascalCase (`Mahasantri`, `Musyrif`, `Admin`). Enum lokal `ROLE` yang dibuat menggunakan UPPERCASE dan tidak memiliki nilai `ADMIN`. Jika payload token JWT berisi role dari Prisma (`user.role === 'Musyrif'`), komparasi dengan enum ini tidak akan pernah cocok.
-- **Batasan Tipe Decorator:**
-  `Reflector.createDecorator<ROLE>()` membatasi metadata hanya satu role saja. Padahal banyak endpoint yang dapat diakses oleh beberapa role sekaligus (misal: Musyrif dan Admin). Seharusnya menerima array `Role[]`.
-
-### 3. Celah Validasi: Mahasantri Dapat Login Tanpa `device_id`
-- Di `src/auth/dto/login.dto.ts`, properti `device_id` diubah menjadi `@IsOptional()`. Ini tepat untuk role Musyrif dan Admin.
-- Namun di `AuthService.login()`:
-  ```typescript
-  if (user.role === Role.Mahasantri) {
-    // ...
-    await this.bindDevice(user.id_pengguna, user.device_id, dto.device_id);
-  }
-  ```
-  Jika akun Mahasantri login tanpa mengirimkan `device_id` (`dto.device_id` bernilai `undefined`), fungsi `bindDevice` akan menerima `undefined` dan meloloskan login tanpa pengikatan perangkat (melanggar aturan **BR-04 Anti-Fake GPS: device_id terikat ke satu akun**).
+| No | Area / Komponen | Tingkat Prioritas | Status | Dampak & Masalah Utama |
+| :---: | :--- | :---: | :---: | :--- |
+| 1 | **RolesGuard (`Roles.guard.ts`)** | 🔴 **P0 (Urgent)** | Bug Fatal | Memeriksa `request.role` alih-alih `request.user.role`, missing `@Injectable()`, penamaan file PascalCase. Semua endpoint ber-role tertolak. |
+| 2 | **Decorator `@Roles()`** | 🔴 **P0 (Urgent)** | Bug Kritis | Menggunakan enum lokal uppercase tanpa `ADMIN`. Tidak cocok dengan enum Prisma PascalCase (`Role`) di payload JWT, serta belum mendukung multi-role. |
+| 3 | **Registrasi `RolesGuard` di AuthModule** | 🔴 **P0 (Urgent)** | Belum Didaftarkan | `RolesGuard` belum terdaftar di `providers` / `exports` di `auth.module.ts`. |
+| 4 | **Migrasi Database Indexing** | 🟡 **P1 (High)** | Skema Siap, Migrasi Belum | Index `@@index([id_jadwal, tanggal])` & `@@index([nim])` baru ada di `schema.prisma`, file migrasi fisik ke DB belum digenerate/dijalankan. |
+| 5 | **Standarisasi Response & Exception Filter** | 🟡 **P1 (High)** | Belum Diterapkan | Format response sukses dan error belum seragam sesuai kontrak API (`API_CONTRACT.md`). |
+| 6 | **Optimasi `validateUser` (Brute Force)** | 🔵 **P2 (Medium)** | Belum Dikerjakan | Query JOIN profil berat dieksekusi sebelum pencocokan password dengan `bcrypt.compare`. |
+| 7 | **Verifikasi `status_aktif` di `JwtStrategy`** | 🔵 **P2 (Medium)** | Belum Dikerjakan | Token JWT berlaku 7 hari; Mahasantri yang dinonaktifkan Admin di tengah periode masih bisa presensi. |
+| 8 | **Endpoint Reset / Unbind Device ID** | 🔵 **P2 (Medium)** | Belum Dikerjakan | Mahasantri terkunci permanen (`ERR_DEVICE_MISMATCH`) jika berganti atau kehilangan perangkat. Belum ada API reset. |
+| 9 | **Path Alias di `tsconfig.json`** | ⚪ **P3 (Low)** | Belum Dikonfigurasi | Import Prisma Client masih menggunakan relative path berjenjang (`../../../generated/...`). |
+| 10 | **Tag Image PostgreSQL Docker Compose** | ⚪ **P3 (Low)** | Perlu Disesuaikan | Menggunakan `postgres:18-alpine` (versi belum stabil/rilis resmi). |
+| 11 | **Konfigurasi CORS di `main.ts`** | ⚪ **P3 (Low)** | Belum Diaktifkan | Frontend web/mobile berisiko terblokir CORS saat mengakses server. |
 
 ---
 
-## ⚠️ 3. Temuan yang Masih Belum Diselesaikan dari Review Sebelumnya
+## 🔍 Rincian Masalah & Panduan Solusi Kode
 
-### 1. Database Indexing yang Masih Kurang (`prisma/schema.prisma`)
-1. **Model `Presensi`**:
-   - Query cron scheduler (penanda otomatis status `Tidak_Hadir` pasca shalat) dan dashboard pemantauan membutuhkan pencarian berdasarkan `id_jadwal` dan `tanggal` secara berkala.
-   - Index komposit yang ada saat ini (`@@index([nim, tanggal, id_jadwal])`) diawali oleh `nim`, sehingga PostgreSQL tidak dapat menggunakannya jika query tidak menyertakan filter `nim`.
-   - **Solusi**: Tambahkan index komposit:
-     ```prisma
-     @@index([id_jadwal, tanggal])
-     ```
-2. **Model `Izin`**:
-   - Endpoint santri `GET /v1/izin/saya` memfilter riwayat izin berdasarkan `nim`.
-   - Index yang ada saat ini adalah `@@index([id_musyrif, status_persetujuan, nim])`. Index B-Tree multi-kolom yang diawali `id_musyrif` tidak akan mengoptimalkan query yang hanya mencari berdasarkan `WHERE nim = ?`.
-   - **Solusi**: Tambahkan index mandiri:
-     ```prisma
-     @@index([nim])
-     ```
+### 1. Perbaikan Fatal Bug `RolesGuard` & Decorator `@Roles()` (P0)
 
-### 2. Celah JWT Expiration Saat Mahasantri Dinonaktifkan (`src/auth/strategies/jwt.strategy.ts`)
-- `JwtStrategy.validate()` hanya mengembalikan data hasil decode token tanpa memverifikasi apakah Mahasantri yang bersangkutan masih aktif (`status_aktif = true`).
-- Akun yang dinonaktifkan oleh Admin di tengah hari masih dapat melakukan presensi atau request lain sampai masa berlaku token JWT (7 hari) habis.
+#### Masalah:
+1. **Objek User Tertukar**: Pada `src/auth/guard/Roles.guard.ts`, kode memanggil `request.role`. Passport JWT menyimpan hasil autentikasi pada `request.user`. Karena `request.role` selalu `undefined`, guard selalu mengembalikan `false` (403 Forbidden).
+2. **Inkonsistensi Nilai Enum**: Decorator mendefinisikan enum sendiri:
+   ```typescript
+   export enum ROLE {
+     MAHASANTRI = 'MAHASANTRI',
+     MUSYRIF = 'MUSYRIF',
+   }
+   ```
+   Sedangkan payload JWT dan Prisma menggunakan enum `Role` PascalCase (`'Mahasantri'`, `'Musyrif'`, `'Admin'`). Komparasi tidak pernah cocok, dan role `Admin` tidak tersedia.
+3. **Decorator Single-Role**: `Reflector.createDecorator<ROLE>()` membatasi hanya 1 role. Banyak endpoint yang butuh diakses oleh multi-role (misal Musyrif & Admin).
+4. **Missing Decorator & Penamaan File**: Class `RolesGuard` belum memiliki decorator `@Injectable()`. Penamaan file `Roles.guard.ts` (PascalCase) tidak konsisten dengan konvensi NestJS (`roles.guard.ts`).
 
-### 3. Tidak Ada Mekanisme Reset / Unbind Device
-- Jika Mahasantri kehilangan gawai, berganti ponsel, atau mereset perangkat ke pengaturan pabrik, mereka akan terkunci secara permanen dengan pesan `ERR_DEVICE_MISMATCH`.
-- Belum ada endpoint bagi Admin atau Musyrif untuk mengosongkan kolom `device_id` pada akun Mahasantri.
+#### Solusi Kode:
 
-### 4. Beban Query Berat Saat Percobaan Login Gagal (Brute Force Risk)
-- Fungsi `validateUser()` langsung memanggil `this.prismaService.pengguna.findUnique` dengan relasi kompleks (`include: { mahasantri: { include: { musyrif: ... } }, musyrif: true }`) **sebelum** password dicocokkan dengan `bcrypt.compare`.
-- Saat terjadi serangan brute-force, database dipaksa melakukan query JOIN relasi berat untuk setiap percobaan password yang salah.
-
-### 5. `ValidationPipe` di `main.ts` Belum Dikonfigurasi
-- Di `src/main.ts`:
-  ```typescript
-  app.useGlobalPipes(new ValidationPipe());
-  ```
-  Parameter proteksi belum dipasang:
-  - `whitelist: true`: Mencegah *Mass Assignment* dengan membuang field yang tidak didefinisikan pada DTO.
-  - `transform: true`: Mengonversi tipe data primitif secara otomatis dari query/param string ke tipe yang sesuai.
-
-### 6. Path Alias Belum Dikonfigurasi di `tsconfig.json`
-- Impor dari folder generated prisma masih berupa relative import bertingkat (`../../generated/prisma/client` vs `../../../generated/prisma/enums`). Perlu path alias (misal `@generated/*` atau `@prisma-client`) agar kode tetap stabil saat terjadi refactoring folder.
-
----
-
-## 🛠️ 4. Panduan Solusi & Rekomendasi Kode Perbaikan
-
-### A. Perbaikan Decorator `@Roles()` (`src/auth/decorators/roles.decorator.ts`)
-Gunakan enum `Role` resmi dari Prisma dan dukung penerimaan multi-role:
+**A. Ubah `src/auth/decorators/roles.decorator.ts`**:
 ```typescript
 import { SetMetadata } from '@nestjs/common';
-import { Role } from '../../../generated/prisma/client';
+import { Role } from '../../../generated/prisma/enums';
 
 export const ROLES_KEY = 'roles';
 export const Roles = (...roles: Role[]) => SetMetadata(ROLES_KEY, roles);
 ```
 
-### B. Perbaikan `RolesGuard` (`src/auth/guard/roles.guard.ts`)
-Ubah nama file menjadi `roles.guard.ts` (kebab-case) dan perbaiki pembacaan user dari `request.user`:
+**B. Ubah nama file menjadi `src/auth/guard/roles.guard.ts`**:
 ```typescript
-import { CanActivate, ExecutionContext, Injectable, ForbiddenException } from '@nestjs/common';
+import {
+  CanActivate,
+  ExecutionContext,
+  ForbiddenException,
+  Injectable,
+} from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { Role } from '../../../generated/prisma/client';
+import { Role } from '../../../generated/prisma/enums';
 import { ROLES_KEY } from '../decorators/roles.decorator';
 
 @Injectable()
@@ -149,7 +81,7 @@ export class RolesGuard implements CanActivate {
 
     if (!user || !user.role) {
       throw new ForbiddenException({
-        message: 'Akses ditolak: pengguna tidak terautentikasi atau tidak memiliki role',
+        message: 'Akses ditolak: pengguna tidak memiliki role yang valid',
         error: 'ERR_FORBIDDEN_ROLE',
       });
     }
@@ -159,33 +91,57 @@ export class RolesGuard implements CanActivate {
 }
 ```
 
-### C. Perbaikan Validasi Device pada Mahasantri (`src/auth/auth.service.ts`)
-Tambahkan pengecekan eksplisit bahwa `device_id` wajib ada jika role adalah Mahasantri:
+**C. Daftarkan di `src/auth/auth.module.ts`**:
 ```typescript
-if (user.role === Role.Mahasantri) {
-  if (!user.mahasantri?.status_aktif) {
-    throw new ForbiddenException({
-      message: 'Akun tidak aktif',
-      error: 'ERR_ACCOUNT_INACTIVE',
-    });
-  }
+import { RolesGuard } from './guard/roles.guard';
 
-  if (!dto.device_id) {
-    throw new BadRequestException({
-      message: 'Perangkat (device_id) wajib disertakan untuk Mahasantri',
-      error: 'ERR_DEVICE_ID_REQUIRED',
-    });
-  }
-
-  await this.bindDevice(user.id_pengguna, user.device_id, dto.device_id);
-}
+@Module({
+  // ...
+  providers: [AuthService, JwtStrategy, JwtAuthGuard, RolesGuard],
+  exports: [JwtAuthGuard, RolesGuard],
+})
+export class AuthModule {}
 ```
 
-### D. Optimasi `validateUser` (Mencegah Query Berat Saat Brute-force)
-Pisahkan query verifikasi kredensial dari query pemuatan profil lengkap:
+---
+
+### 2. Generate Migrasi Database untuk Indexing Baru (P1)
+
+#### Masalah:
+Perubahan index pada `prisma/schema.prisma` sudah dibuat di commit `cb2c89d`:
+- `Presensi`: `@@index([id_jadwal, tanggal])`
+- `Izin`: `@@index([nim])`
+
+Namun di folder `prisma/migrations`, belum ada file migrasi SQL baru untuk perubahan ini.
+
+#### Solusi Tindakan:
+Jalankan perintah Prisma Migrate untuk men-generate file SQL migrasi dan mengaplikasikannya ke database:
+```bash
+pnpx prisma migrate dev --name add_composite_indexes_presensi_izin
+```
+
+---
+
+### 3. Mitigasi Serangan Brute Force pada `validateUser()` (P2)
+
+#### Masalah:
+Pada `src/auth/auth.service.ts`:
+```typescript
+const user = await this.prismaService.pengguna.findUnique({
+  where: { username },
+  include: {
+    mahasantri: { include: { musyrif: true } },
+    musyrif: true,
+  },
+});
+const ok = await bcrypt.compare(pass, user.password);
+```
+Setiap percobaan password salah tetap memicu query JOIN multi-tabel ke PostgreSQL.
+
+#### Solusi Kode:
+Pisahkan verifikasi kredensial minimal dari pengambilan data profil lengkap:
 ```typescript
 async validateUser(username: string, pass: string): Promise<UserWithProfil | null> {
-  // Query awal hanya mengambil kredensial minimal
   const credential = await this.prismaService.pengguna.findUnique({
     where: { username },
     select: { id_pengguna: true, password: true },
@@ -196,7 +152,6 @@ async validateUser(username: string, pass: string): Promise<UserWithProfil | nul
   const isPasswordValid = await bcrypt.compare(pass, credential.password);
   if (!isPasswordValid) return null;
 
-  // Jika password valid, muat profil lengkap untuk respon login
   return this.prismaService.pengguna.findUnique({
     where: { id_pengguna: credential.id_pengguna },
     include: {
@@ -213,47 +168,138 @@ async validateUser(username: string, pass: string): Promise<UserWithProfil | nul
 }
 ```
 
-### E. Penambahan Index pada `prisma/schema.prisma`
-```prisma
-model Presensi {
-  // ... kolom lainnya ...
+---
 
-  @@unique([nim, id_jadwal, tanggal])
-  @@index([nim, tanggal, id_jadwal])
-  @@index([id_jadwal, tanggal]) // <-- Tambahkan untuk scheduled job & rekap jadwal
-  @@map("presensi")
-}
+### 4. Verifikasi `status_aktif` Mahasantri Real-time di `JwtStrategy` (P2)
 
-model Izin {
-  // ... kolom lainnya ...
+#### Masalah:
+Pada `src/auth/strategies/jwt.strategy.ts`, method `validate()` langsung meloloskan request berdasarkan decoded payload token. Akun Mahasantri yang dinonaktifkan (`status_aktif = false`) oleh Admin masih dapat presensi atau mengakses API selama token (7 hari) belum kedaluwarsa.
 
-  @@index([id_musyrif, status_persetujuan, nim])
-  @@index([nim]) // <-- Tambahkan untuk query GET /v1/izin/saya
-  @@map("izin")
-}
-```
-
-### F. Konfigurasi `main.ts`
+#### Solusi Kode:
+Tambahkan pengecekan `status_aktif` untuk role `Mahasantri`:
 ```typescript
-app.useGlobalPipes(
-  new ValidationPipe({
-    whitelist: true,
-    transform: true,
-    forbidNonWhitelisted: true,
-  }),
-);
+async validate(payload: JwtPayload) {
+  if (payload.role === Role.Mahasantri) {
+    const santri = await this.prismaService.mahasantri.findUnique({
+      where: { id_pengguna: payload.sub },
+      select: { status_aktif: true },
+    });
+
+    if (!santri || !santri.status_aktif) {
+      throw new UnauthorizedException({
+        message: 'Akun Anda telah dinonaktifkan',
+        error: 'ERR_ACCOUNT_INACTIVE',
+      });
+    }
+  }
+
+  return {
+    sub: payload.sub,
+    username: payload.username,
+    role: payload.role,
+  };
+}
 ```
 
 ---
 
-## 📋 5. Checklist Prioritas Tindak Lanjut
+### 5. Endpoint Reset / Unbind `device_id` Mahasantri (P2)
 
-- [ ] **P0 (Urgent / Bug):** Perbaiki `RolesGuard` dan decorator `@Roles()` (hapus typo, perbaiki `req.user`, gunakan enum Prisma).
-- [ ] **P0 (Urgent / Bug):** Tambahkan validasi kewajiban `device_id` khusus Mahasantri pada `AuthService.login()`.
-- [ ] **P1 (High):** Tambahkan index `@@index([id_jadwal, tanggal])` pada `Presensi` dan `@@index([nim])` pada `Izin` di `prisma/schema.prisma` lalu jalankan migrasi.
-- [ ] **P1 (High):** Aktifkan `whitelist: true` dan `transform: true` pada `ValidationPipe` di `src/main.ts`.
-- [ ] **P1 (High):** Ekstrak pendaftaran `RolesGuard` ke `AuthModule` (providers & exports) atau daftarkan secara global.
-- [ ] **P2 (Medium):** Optimasi `validateUser()` agar tidak melakukan join berat jika password salah.
-- [ ] **P2 (Medium):** Buat endpoint Admin/Musyrif untuk reset `device_id` akun Mahasantri.
-- [ ] **P2 (Medium):** Tambahkan verifikasi `status_aktif` di `JwtStrategy.validate()` untuk mencegah penggunaan token oleh akun non-aktif.
-- [ ] **P3 (Low):** Konfigurasikan path alias di `tsconfig.json` untuk impor prisma client.
+#### Masalah:
+Sesuai aturan **BR-04**, `device_id` dikunci ke akun Mahasantri pada login pertama. Jika gawai rusak atau berganti perangkat, santri akan terkunci dengan pesan `ERR_DEVICE_MISMATCH`. Saat ini belum ada endpoint bagi Admin atau Musyrif untuk mereset binding perangkat.
+
+#### Solusi Desain:
+Tambahkan endpoint khusus Admin/Musyrif (misal `POST /v1/mahasantri/:nim/reset-device`):
+1. Dilindungi oleh `JwtAuthGuard` dan `RolesGuard` (`@Roles(Role.Admin, Role.Musyrif)`).
+2. Memperbarui `device_id = null` pada tabel `pengguna` milik Mahasantri terkait.
+3. Mencatat aktivitas ke `activity_logs` sesuai **BR-11**.
+
+---
+
+### 6. Konfigurasi Path Alias pada `tsconfig.json` (P3)
+
+#### Masalah:
+Impor Prisma Client dan modul masih menggunakan relative path berjenjang seperti:
+`import { Role } from '../../../generated/prisma/enums';`
+
+#### Solusi Konfigurasi:
+Tambahkan konfigurasi `paths` pada `tsconfig.json`:
+```json
+{
+  "compilerOptions": {
+    "baseUrl": "./",
+    "paths": {
+      "@generated/*": ["generated/*"],
+      "@src/*": ["src/*"]
+    }
+  }
+}
+```
+
+---
+
+### 7. Standarisasi Response Interceptor & Global Exception Filter (P1)
+
+#### Masalah:
+Sesuai dokumen `docs/API_CONTRACT.md`, struktur payload HTTP harus terstandarisasi:
+- Sukses: `{ "success": true, "statusCode": 200, "message": "...", "data": {} }`
+- Error: `{ "success": false, "statusCode": 400, "message": "...", "error": "ERR_CODE" }`
+
+Saat ini NestJS masih mengembalikan raw payload bawaan (tidak konsisten antara format controller dan HttpException).
+
+#### Solusi Kode:
+1. Buat `TransformInterceptor` di `src/common/interceptors/transform.interceptor.ts`.
+2. Buat `HttpExceptionFilter` di `src/common/filters/http-exception.filter.ts`.
+3. Daftarkan keduanya secara global di `src/main.ts`:
+```typescript
+app.useGlobalInterceptors(new TransformInterceptor());
+app.useGlobalFilters(new HttpExceptionFilter());
+```
+
+---
+
+### 8. Penyesuaian Versi Image Docker Compose PostgreSQL (P3)
+
+#### Masalah:
+Pada `docker-compose.yaml`, image database disetel ke `postgres:18-alpine`. Versi PostgreSQL 18 belum rilis resmi / stabil di Docker Hub, sehingga berisiko gagal pull saat setup lingkungan baru.
+
+#### Solusi Konfigurasi:
+Ubah image ke versi LTS stabil (misalnya `postgres:17-alpine`):
+```yaml
+services:
+  postgres:
+    image: postgres:17-alpine
+```
+
+---
+
+### 9. Pengaktifan Konfigurasi CORS di `main.ts` (P3)
+
+#### Masalah:
+Server belum mengaktifkan CORS (`app.enableCors()`). Saat frontend mobile atau web dashboard mengakses API dari domain atau port berbeda, browser akan memblokir request.
+
+#### Solusi Kode:
+Tambahkan di `src/main.ts`:
+```typescript
+app.enableCors({
+  origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : '*',
+  credentials: true,
+});
+```
+
+---
+
+## 📋 Checklist Prioritas Tindak Lanjut
+
+- [ ] **P0:** Perbaiki `RolesGuard` (baca `request.user.role`, pasang `@Injectable()`, rename ke `roles.guard.ts`).
+- [ ] **P0:** Ubah decorator `@Roles()` agar menggunakan enum `Role` Prisma dan mendukung array `Role[]`.
+- [ ] **P0:** Daftarkan `RolesGuard` di `providers` dan `exports` pada `AuthModule`.
+- [ ] **P1:** Jalankan `prisma migrate dev` untuk menerapkan index komposit `Presensi` dan `Izin`.
+- [ ] **P1:** Implementasikan `TransformInterceptor` dan `HttpExceptionFilter` sesuai kontrak API.
+- [ ] **P2:** Optimasi `AuthService.validateUser()` (pisahkan verifikasi password dari query profil berat).
+- [ ] **P2:** Tambahkan pengecekan `status_aktif` di `JwtStrategy.validate()`.
+- [ ] **P2:** Implementasikan endpoint reset / unbind `device_id` Mahasantri untuk Admin & Musyrif.
+- [ ] **P3:** Konfigurasikan `paths` alias di `tsconfig.json`.
+- [ ] **P3:** Sesuaikan tag image `postgres:17-alpine` di `docker-compose.yaml`.
+- [ ] **P3:** Aktifkan konfigurasi CORS di `src/main.ts`.
+
