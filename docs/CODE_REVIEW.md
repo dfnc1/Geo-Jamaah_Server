@@ -13,15 +13,15 @@ Dokumen ini memuat daftar temuan, bug, serta fitur yang **belum diselesaikan / m
 - Penyesuaian tag image PostgreSQL ke versi stabil `postgres:17-alpine` pada `docker-compose.yaml`
 - Pengaktifan konfigurasi CORS di `src/main.ts`
 - Standarisasi Response Interceptor (`TransformInterceptor`) dan Global Exception Filter (`HttpExceptionFilter`) sesuai kontrak API di `src/main.ts`
+- Refaktor import relatif panjang ke path alias (`@generated/*`, `@src/*`)
 
 ---
 
 ## 📊 Matriks Backlog & Prioritas Pengerjaan
 
 | No | Area / Komponen | Tingkat Prioritas | Status | Dampak & Masalah Utama |
-| :---: | :--- | :---: | :---: | :--- |
+| :---: | :--- | :--- | :---: | :--- |
 | 1 | **Endpoint Reset / Unbind Device ID** | 🔵 **P2 (Medium)** | Belum Dikerjakan | Mahasantri terkunci permanen (`ERR_DEVICE_MISMATCH`) jika gawai rusak atau berganti perangkat. Belum ada API bagi Admin/Musyrif untuk mereset `device_id`. |
-| 2 | **Refaktor Import ke Path Alias (`@generated`, `@src`)** | ⚪ **P3 (Low)** | Belum Dimigrasi | Konfigurasi alias di `tsconfig.json` sudah aktif, tetapi impor pada modul-modul yang ada masih menggunakan relative path berjenjang (`../../../generated/...`). |
 
 ---
 
@@ -40,22 +40,6 @@ Tambahkan endpoint khusus Admin/Musyrif (misal `POST /v1/mahasantri/:nim/reset-d
 
 ---
 
-### 2. Refaktor Impor Menggunakan Path Alias (P3)
-
-#### Masalah:
-Alias `@generated/*` dan `@src/*` sudah aktif di `tsconfig.json`, namun kode lama masih memakai import relatif yang panjang seperti:
-`import { Role } from '../../../generated/prisma/enums';`
-
-#### Solusi:
-Ubah import relatif secara bertahap pada modul-modul:
-```typescript
-import { Role } from '@generated/prisma/enums';
-import { PrismaService } from '@src/prisma/prisma.service';
-```
-
----
-
 ## 📋 Checklist Prioritas Tindak Lanjut
 
 - [ ] **P2:** Implementasikan endpoint reset / unbind `device_id` Mahasantri untuk Admin & Musyrif (`POST /v1/mahasantri/:nim/reset-device`).
-- [ ] **P3:** Refaktor import relatif panjang menggunakan path alias `@generated/*` dan `@src/*`.

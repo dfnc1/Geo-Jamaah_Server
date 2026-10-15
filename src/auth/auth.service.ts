@@ -5,8 +5,8 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { PrismaService } from '../prisma/prisma.service';
-import { Prisma, Role } from '../../generated/prisma/client';
+import { PrismaService } from '@src/prisma/prisma.service';
+import { Prisma, Role } from '@generated/prisma/client';
 import {
   AuthResponseDto,
   LoginDto,
