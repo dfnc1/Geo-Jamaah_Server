@@ -35,28 +35,29 @@ export class AuthService {
     username: string,
     pass: string,
   ): Promise<UserWithProfil | null> {
-    const user = await this.prismaService.pengguna.findUnique({
+    const credential = await this.prismaService.pengguna.findUnique({
       where: { username },
+      select: { id_pengguna: true, password: true },
+    });
+
+    if (!credential) return null;
+
+    const idPasswordValid = await bcrypt.compare(pass, credential.password);
+    if (!idPasswordValid) return null;
+
+    return this.prismaService.pengguna.findUnique({
+      where: { id_pengguna: credential.id_pengguna },
       include: {
         mahasantri: {
           include: {
             musyrif: {
-              select: {
-                id_musyrif: true,
-                nama: true,
-              },
+              select: { id_musyrif: true, nama: true },
             },
           },
         },
         musyrif: true,
       },
     });
-
-    if (!user) return null;
-
-    const ok = await bcrypt.compare(pass, user.password);
-
-    return ok ? user : null;
   }
 
   async login(dto: LoginDto): Promise<AuthResponseDto> {
