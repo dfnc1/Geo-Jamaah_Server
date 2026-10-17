@@ -4,6 +4,7 @@ import {
   ExceptionFilter,
   HttpException,
   HttpStatus,
+  Logger,
 } from '@nestjs/common';
 import { Response } from 'express';
 
@@ -14,11 +15,31 @@ export interface ApiErrorResponse {
   error: string;
 }
 
-@Catch(HttpException)
+@Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
-  catch(exception: HttpException, host: ArgumentsHost) {
+  private readonly logger = new Logger(HttpExceptionFilter.name);
+
+  catch(exception: unknown, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
+
+    if (!(exception instanceof HttpException)) {
+      this.logger.error(
+        'Terjadi kesalahan tak terduga',
+        exception instanceof Error ? exception.stack : String(exception),
+      );
+
+      const payload: ApiErrorResponse = {
+        success: false,
+        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+        message: 'Terjadi kesalahan pada server',
+        error: 'ERR_INTERNAL',
+      };
+
+      response.status(HttpStatus.INTERNAL_SERVER_ERROR).json(payload);
+      return;
+    }
+
     const statusCode = exception.getStatus();
     const res = exception.getResponse();
 
