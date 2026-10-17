@@ -1,4 +1,9 @@
-import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+  OnModuleInit,
+} from '@nestjs/common';
 import { PrismaClient } from '@generated/prisma/client';
 import { ConfigService } from '@nestjs/config';
 import { PrismaPg } from '@prisma/adapter-pg';
@@ -10,6 +15,7 @@ export class PrismaService
   implements OnModuleInit, OnModuleDestroy
 {
   private readonly pool: Pool;
+  private readonly logger = new Logger(PrismaService.name);
 
   constructor(private readonly configService: ConfigService) {
     const pool = new Pool({
@@ -23,7 +29,16 @@ export class PrismaService
   }
 
   async onModuleInit() {
-    await this.$connect();
+    try {
+      await this.$connect();
+      this.logger.log('Koneksi database terhubung');
+    } catch (e) {
+      this.logger.error(
+        'Gagal terhubung ke database',
+        e instanceof Error ? e.stack : String(e),
+      );
+      throw e;
+    }
   }
 
   async onModuleDestroy() {

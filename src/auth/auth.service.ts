@@ -1,6 +1,7 @@
 import {
   ForbiddenException,
   Injectable,
+  Logger,
   UnauthorizedException,
   BadRequestException,
 } from '@nestjs/common';
@@ -26,6 +27,8 @@ type UserWithProfil = Prisma.PenggunaGetPayload<{
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private jwtService: JwtService,
     private prismaService: PrismaService,
@@ -63,6 +66,9 @@ export class AuthService {
   async login(dto: LoginDto): Promise<AuthResponseDto> {
     const user = await this.validateUser(dto.username, dto.password);
     if (!user) {
+      this.logger.warn(
+        `Login gagal: username "${dto.username}" tidak valid atau password salah`,
+      );
       throw new UnauthorizedException({
         message: 'Username atau password salah',
         error: 'ERR_INVALID_CREDENTIALS',
@@ -112,6 +118,9 @@ export class AuthService {
     if (currentDeviceId === incomingDeviceId) return;
 
     if (currentDeviceId) {
+      this.logger.warn(
+        `Device mismatch untuk pengguna ${idPengguna}: perangkat terdaftar mencoba login dengan device_id lain`,
+      );
       throw this.deviceMismatch();
     }
 
@@ -125,8 +134,15 @@ export class AuthService {
         e instanceof Prisma.PrismaClientKnownRequestError &&
         e.code === 'P2002'
       ) {
+        this.logger.warn(
+          `Bind device bentrok (P2002) untuk pengguna ${idPengguna}: device_id sudah terikat ke akun lain`,
+        );
         throw this.deviceMismatch();
       }
+      this.logger.error(
+        `Gagal update device_id untuk pengguna ${idPengguna}`,
+        e instanceof Error ? e.stack : String(e),
+      );
       throw e;
     }
   }

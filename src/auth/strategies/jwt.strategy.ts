@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
@@ -13,6 +13,8 @@ interface JwtPayload {
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
+  private readonly logger = new Logger(JwtStrategy.name);
+
   constructor(
     configService: ConfigService,
     private prismaService: PrismaService,
@@ -32,6 +34,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       });
 
       if (!santri || !santri.status_aktif) {
+        this.logger.warn(
+          `Token ditolak: akun Mahasantri ${payload.sub} tidak aktif atau profil tidak ditemukan`,
+        );
         throw new UnauthorizedException({
           message: 'Akun Anda telah dinonaktifkan',
           error: 'ERR_ACCOUNT_INACTIVE',
