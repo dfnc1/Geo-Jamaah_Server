@@ -4,14 +4,12 @@ Legenda: ✅ selesai, 🟡 sebagian, ⬜ belum.
 
 ## Posisi Sekarang
 
-Volume Postgres, seed, RBAC global, dan rapikan `main.ts` sudah beres. Tinggal satu item: tes manual auth untuk
-membuktikan seluruh perilaku sebelum lanjut ke tahap 4 (master data Admin).
+Seluruh tahap 1 sampai 3 selesai, termasuk 18 skenario tes manual auth (lulus semua). Lanjut ke tahap 4 (master data
+Admin).
 
 ## Urutan Pengerjaan
 
-| No | Item                                | Prioritas | Status |
-|----|-------------------------------------|-----------|--------|
-| 5  | Tes manual auth                     | P1        | ⬜     |
+Tidak ada item tersisa. Tahap 4 (master data Admin) menunggu untuk dikerjakan.
 
 ---
 
@@ -88,6 +86,34 @@ dijadikan bukti di laporan.
 - [x] 2 Seed jalan dua kali tanpa error, semua akun bisa login
 - [x] 3 Guard global, `@Public()`, `ERR_FORBIDDEN_ROLE`, file di-rename
 - [x] 4 `ERR_VALIDATION`, tanpa `forbidNonWhitelisted`, filter error umum
-- [ ] 5 Delapan belas skenario tes manual lulus
-- [ ] Controller debug sudah dihapus
+- [x] 5 Delapan belas skenario tes manual lulus
+- [x] Controller debug sudah dihapus
 - [x] Semua perubahan ter-commit dengan pesan Conventional Commits
+
+## Hasil Tes Manual (17 Okt 2026)
+
+Semua 18 skenario lulus:
+
+| No | Skenario | Hasil |
+|----|----------|-------|
+| 1 | Login Admin tanpa `device_id` | ✅ 201, `profil: null` |
+| 2 | Login Musyrif | ✅ 201, profil lengkap |
+| 3 | Login Mahasantri + `device_id` | ✅ 201, profil + musyrif |
+| 4 | Mahasantri tanpa `device_id` | ✅ 400 `ERR_DEVICE_ID_REQUIRED` |
+| 5 | Login ulang `device_id` sama | ✅ 201 |
+| 6 | `device_id` berbeda | ✅ 401 `ERR_DEVICE_MISMATCH` |
+| 7 | Santri lain pakai `device_id` terpakai | ✅ 401 `ERR_DEVICE_MISMATCH` |
+| 8 | Password salah | ✅ 401 `ERR_INVALID_CREDENTIALS` |
+| 9 | Username tidak ada | ✅ 401 `ERR_INVALID_CREDENTIALS` |
+| 10 | Mahasantri nonaktif | ✅ 403 `ERR_ACCOUNT_INACTIVE` |
+| 11 | Body kosong `{}` | ✅ 400 `ERR_VALIDATION` |
+| 12 | Response tanpa `password`/`device_id` | ✅ Bersih |
+| 13 | Endpoint tanpa token | ✅ 401 |
+| 14 | Token rusak | ✅ 401 |
+| 15 | Token Musyrif → endpoint Musyrif | ✅ 200 |
+| 16 | Token Mahasantri → endpoint Musyrif | ✅ 403 `ERR_FORBIDDEN_ROLE` |
+| 17 | Token Admin → endpoint Musyrif | ✅ 403 `ERR_FORBIDDEN_ROLE` |
+| 18 | Token hidup, akun dinonaktifkan | ✅ 401 `ERR_ACCOUNT_INACTIVE` |
+
+Seed terverifikasi idempoten (dua kali run, jumlah baris tidak bertambah). Logger terverifikasi muncul di terminal
+(login gagal, device mismatch, P2002, DB connect, bootstrap error).
