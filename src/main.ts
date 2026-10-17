@@ -1,14 +1,20 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { ValidationPipe } from '@nestjs/common';
+import {
+  BadRequestException,
+  Logger,
+  ValidationPipe,
+} from '@nestjs/common';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+
+const logger = new Logger('Bootstrap');
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   app.enableCors({
-    origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : '*',
+    origin: '*',
     credentials: true,
   });
   app.enableShutdownHooks();
@@ -16,7 +22,12 @@ async function bootstrap() {
     new ValidationPipe({
       whitelist: true,
       transform: true,
-      forbidNonWhitelisted: true,
+      exceptionFactory: (errors) => {
+        new BadRequestException({
+          message: errors.flatMap((e) => Object.values(e.constraints ?? {})),
+          error: 'ERR_VALIDATION',
+        });
+      },
     }),
   );
   app.useGlobalInterceptors(new TransformInterceptor());
@@ -27,5 +38,5 @@ async function bootstrap() {
 }
 
 bootstrap().catch((err) => {
-  console.error(err);
+  logger.error('Gagal menjalankan aplikasi', err instanceof Error ? err.stack : String(err));
 });
