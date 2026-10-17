@@ -27,6 +27,13 @@ export class RolesGuard implements CanActivate {
         error: 'ERR_FORBIDDEN_ROLE',
       });
     }
-    return request.user.role !== undefined && requiredRoles.includes(user.role);
+
+    if (!requiredRoles.includes(user.role)) {
+      throw new ForbiddenException({
+        message: 'Anda tidak memiliki akses ke resource ini',
+        error: 'ERR_FORBIDDEN_ROLE',
+      })
+    }
+    return true;
   }
 }
