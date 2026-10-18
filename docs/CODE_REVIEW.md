@@ -4,7 +4,7 @@ Legenda: ✅ selesai, 🟡 sebagian, ⬜ belum.
 
 ## Posisi Sekarang
 
-Tahap 1 sampai 5, tahap 7 (izin, tanpa upload lampiran), tahap 8 (scheduled job `Tidak_Hadir`), dan tahap 10 (DSS & EWS) selesai (setup dasar, auth/RBAC/device binding, seed, master data Admin, presensi geolokasi, pengajuan/daftar/verifikasi izin dengan state machine, job penandaan absen otomatis + pemicu manual, serta endpoint santri kritis dengan rasio/streak EWS). P1 (env, Swagger, throttler) juga sudah beres. Berikutnya tahap 6 (Riwayat dan ringkasan hari ini). Sisa pekerjaan besar: riwayat, lampiran izin (MinIO), monitoring/grafik, activity log, rekap, testing, dan Docker aplikasi.
+Tahap 1 sampai 5, tahap 7 (izin, tanpa upload lampiran), tahap 8 (scheduled job `Tidak_Hadir`), tahap 10 (DSS & EWS), dan tahap 11 (activity log / audit trail) selesai (setup dasar, auth/RBAC/device binding, seed, master data Admin, presensi geolokasi, pengajuan/daftar/verifikasi izin dengan state machine, job penandaan absen otomatis + pemicu manual, endpoint santri kritis dengan rasio/streak EWS, serta interceptor audit + endpoint daftar log untuk Admin). P1 (env, Swagger, throttler) juga sudah beres. Berikutnya tahap 6 (Riwayat dan ringkasan hari ini). Sisa pekerjaan besar: riwayat, lampiran izin (MinIO), monitoring/grafik, rekap, testing, dan Docker aplikasi.
 
 ## Status 14 Tahap Backend
 
@@ -80,11 +80,17 @@ Tahap 1 sampai 5, tahap 7 (izin, tanpa upload lampiran), tahap 8 (scheduled job 
 - ✅ 29 unit test (fungsi murni + service: tepat 75 bukan kritis, 74,9 kritis, 74,95 membulat jadi 75, tiga alpha lintas hari/jadwal, dua alpha lalu Hadir, Izin bukan alpha + keluar penyebut, Manual = hadir, penyebut nol, baris luar periode, batas WIB vs UTC, urutan respons, env invalid)
 - **Batasan EWS (diketahui, diterima)**: penilaian hanya menghitung **baris presensi yang tercatat**. Hari yang tidak diproses job (server mati / menit terlewat tanpa backfill) **tidak punya baris**, sehingga Tidak_Hadir hari itu **tidak terhitung alpha** sampai backfill manual (`POST /v1/admin/jobs/tandai-tidak-hadir`) dijalankan untuk tanggal lampau.
 
-**11. Activity log** ⬜
-- ⬜ Interceptor pencatat aktivitas
-- ⬜ Endpoint log untuk Admin (filter, pagination)
-- ⬜ Tidak ada password atau token di log
-- ⬜ Catat aksi master data dari tahap 4 (sudah ditandai `TODO(tahap-11)` di `src/admin/`): buat/ubah/hapus Masjid, buat/ubah/hapus JadwalSholat, dan reset device Mahasantri
+**11. Activity log** ✅
+- ✅ Interceptor pencatat aktivitas: `@Audit(modul, teks, { catatGagal? })` di handler + `ActivityLogInterceptor` sebagai `APP_INTERCEPTOR` di `AppModule`, membaca metadata lewat `Reflector`. **Tanpa metadata lewat tanpa mencatat** — aksi baru TIDAK otomatis dicatat; GET tidak pernah dicatat; konteks non-HTTP (cron) dilewatkan
+- ✅ Yang dicatat (11 titik, semua `TODO(tahap-11)` di `src/` sudah dilepas): login berhasil, login **gagal** (hanya login), presensi, pengajuan izin, verifikasi izin, Masjid buat/ubah/hapus, Jadwal buat/ubah/hapus, reset device, pemicu job manual
+- ✅ Teks dibangun fungsi murni `src/activity-log/audit-teks.ts` (satu fungsi per aksi, maks 500 karakter; username dipotong 100 karakter), eksplisit dan bukan body mentah, contoh: `"Presensi Subuh berhasil, jarak 23 m"`, `"Mengajukan izin Sakit tanggal 2026-10-20"`, `"Pemicu manual job tandai-tidak-hadir 2026-10-17: Tidak_Hadir 12, Izin 0 (total 12)"`
+- ✅ **Tidak ada password/token/device_id**: grep harfiah `%password%`, `%device_id%`, `%token%`, `%access_token%`, nilai password seed dan `device_id` = 0 baris (dibuktikan unit test + tes manual). Frasa login gagal memakai "kata sandi"/"perangkat" supaya token `password` dan `device_id` tidak pernah muncul
+- ✅ Login gagal: username dari body (potong 100 karakter), role hasil **1 query lookup `pengguna` by username**; alasan dari whitelist kode error: `ERR_INVALID_CREDENTIALS` → "Login gagal: username atau kata sandi salah", `ERR_DEVICE_MISMATCH` → "perangkat sudah terikat akun lain", `ERR_ACCOUNT_INACTIVE` → "akun tidak aktif", `ERR_DEVICE_ID_REQUIRED` → "perangkat wajib diisi untuk Mahasantri", lainnya → `"Login gagal (<kode>)"`. **Keputusan: username tak terdaftar → role placeholder `Mahasantri` + teks "Login gagal: username tidak terdaftar" — role itu hanya penanda, bukan role asli**
+- ✅ **Keputusan teks UPDATE/DELETE master data memakai `id`** (`"Mengubah masjid <id>"`, `"Menghapus masjid <id>"`, `"Mengubah/Menghapus jadwal sholat <id>"`) — konsisten dan tidak ambigu bila nama berubah; CREATE tetap memakai nama
+- ✅ Fire-and-forget: `ActivityLogService.catat()` tidak pernah melempar (`.catch` + `Logger.warn`); interceptor juga membungkus blok audit dengan try/catch → kegagalan menulis log TIDAK menggagalkan request, error asli tetap dilempar utuh. Append-only: tanpa endpoint ubah/hapus
+- ✅ `GET /v1/admin/activity-logs` (hanya Admin): filter `role`/`username`/`modul` (exact) + `from`/`to` (`YYYY-MM-DD`, batas hari WIB: `from` ≥ awal hari WIB, `to` < awal hari WIB berikutnya), pagination `page` (mulai 1, default 1) dan `limit` (default 20, maksimum 100); urut `created_at` desc lalu `id_log` desc; respons `{ logs: [...], pagination: { page, limit, total, total_pages } }`; invalid → 400 `ERR_VALIDATION`
+- ✅ Respons `POST /v1/presensi` kini memuat `nama_sholat` (additive) supaya teks log tidak butuh query tambahan
+- ✅ 61 unit test baru di 3 suite (`audit-teks.spec.ts`, `activity-log.service.spec.ts`, `activity-log.interceptor.spec.ts`) + tes manual curl (total suite naik 10 → 13, test 108 → 169): tiap aksi tercatat, login gagal 4 kode error, grep sensitif 0, 401/403, filter, pagination, `from`/`to`, potong username 150 → 100, GET tanpa log
 
 **12. Rekap Admin dan grafik** ⬜
 - ⬜ Rekap global
@@ -104,12 +110,11 @@ Tahap 1 sampai 5, tahap 7 (izin, tanpa upload lampiran), tahap 8 (scheduled job 
 1. Tahap 6 riwayat dan ringkasan
 2. Tahap 7 lampiran izin (MinIO) — bagian izin sudah selesai
 3. Tahap 9 monitoring dan grafik Musyrif
-4. Tahap 11 activity log (wajib untuk laporan, ketentuan audit trail)
-5. Tahap 12 rekap dan grafik Admin
-6. Tahap 13 testing (unit test inti sudah dimulai di tahap 5, EWS di tahap 10)
-7. Tahap 14 Docker aplikasi
+4. Tahap 12 rekap dan grafik Admin
+5. Tahap 13 testing (unit test inti sudah dimulai di tahap 5, EWS di tahap 10, activity log di tahap 11)
+6. Tahap 14 Docker aplikasi
 
-Jika waktu terbatas, potong dari bawah. Yang wajib: tahap 6 dan 11 (izin, scheduled job, dan DSS/EWS sudah selesai; lampiran MinIO boleh menyusul). Tahap 9 dan 12 cukup satu endpoint grafik per role. Tahap 13 cukup unit test inti. Tahap 14 paling akhir.
+Jika waktu terbatas, potong dari bawah. Yang wajib: tahap 6 (izin, scheduled job, DSS/EWS, dan activity log sudah selesai; lampiran MinIO boleh menyusul). Tahap 9 dan 12 cukup satu endpoint grafik per role. Tahap 13 cukup unit test inti. Tahap 14 paling akhir.
 
 Sebelum tahap 13, bereskan backlog P2 no. 10 (sisa mengganti e2e bawaan).
 
@@ -134,7 +139,7 @@ Sebelum tahap 13, bereskan backlog P2 no. 10 (sisa mengganti e2e bawaan).
 
 | File | Status |
 |---|---|
-| `API_CONTRACT.md` | ✅ Login lengkap (`ERR_ACCOUNT_INACTIVE`, `ERR_DEVICE_ID_REQUIRED`, `ERR_TOO_MANY_REQUESTS`, `device_id` wajib hanya untuk Mahasantri) dan 11 endpoint Admin. Endpoint rencana ditandai |
+| `API_CONTRACT.md` | ✅ Login lengkap (`ERR_ACCOUNT_INACTIVE`, `ERR_DEVICE_ID_REQUIRED`, `ERR_TOO_MANY_REQUESTS`, `device_id` wajib hanya untuk Mahasantri) dan 11 endpoint Admin; `GET /v1/admin/activity-logs`, `nama_sholat` di respons presensi, serta teks login gagal (termasuk role placeholder) ditambahkan di tahap 11 |
 | `DATABASE_SCHEMA.md` | ✅ Bagian Prisma schema disalin ulang dari `prisma/schema.prisma`; daftar index dan foreign key diperbarui |
 | `README.md` | ✅ Status modul sesuai kenyataan, `src/common/` dan `src/admin/` di struktur folder, bagian Swagger, variabel `.env`, Node 24+ |
 | `FRONTEND_GUIDE.md` | ✅ Dibuat berisi tabel status endpoint (Siap / Rencana). Perbarui tiap ada endpoint baru |
@@ -157,3 +162,7 @@ Sebelum tahap 13, bereskan backlog P2 no. 10 (sisa mengganti e2e bawaan).
   - **Batasan race job vs persetujuan (diketahui, diterima)**: konversi hanya menyentuh baris `Tidak_Hadir` yang **sudah ada** saat verifikasi berjalan. Jika cron job membaca status izin (`Pending`) tepat sebelum transaksi persetujuan commit, job dapat membuat baris `Tidak_Hadir` **sesudah** persetujuan selesai — baris telat itu tidak ikut terkonversi dan verify kedua tidak bisa (status sudah final → 409); perbaikannya backfill `POST /v1/admin/jobs/tandai-tidak-hadir` + update manual. Kasus aman: job yang berjalan **setelah** persetujuan commit membaca izin `Disetujui` dan membuat baris `Izin` langsung (logika tahap 8).
 - [x] Tahap 8 scheduled job `Tidak_Hadir` (cron + pemicu manual Admin, opsi A masjid utama + koordinat 0,0; 21 unit test + 14 tes manual)
 - [x] Tahap 10 DSS & EWS (`GET /v1/musyrif/dss/santri-kritis`; fungsi murni `ews.ts`, 3 query tanpa N+1, 29 unit test; penyebut = baris presensi tercatat dalam periode, `< 75` setelah bulat 1 desimal)
+- [x] Tahap 11 activity log (`@Audit` + `APP_INTERCEPTOR` `ActivityLogInterceptor`, fungsi murni `audit-teks.ts`, `GET /v1/admin/activity-logs` hanya-Admin dengan filter WIB + pagination `limit` maks 100; 61 unit test + tes manual curl; append-only, fire-and-forget)
+  - **Keputusan placeholder role**: login gagal untuk username yang tidak terdaftar dicatat dengan role `Mahasantri` sebagai **penanda saja** (role sebenarnya memang tidak ada); teksnya `"Login gagal: username tidak terdaftar"`.
+  - **Keputusan teks UPDATE/DELETE memakai id**: `"Mengubah masjid <id>"`, `"Menghapus masjid <id>"`, `"Mengubah/Menghapus jadwal sholat <id>"` (respons DELETE hanya memuat id; konsisten dengan UPDATE). CREATE tetap memakai nama.
+  - **Keputusan anti-grep sensitif**: frasa login gagal memakai "kata sandi" dan "perangkat" sehingga grep harfiah `%password%` dan `%device_id%` di `activity_logs` = 0 baris.

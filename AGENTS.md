@@ -49,3 +49,14 @@ Aturan:
   diam-diam.
 - Akhiri tiap tahap dengan git status yang bersih dan ringkasan: file
   berubah, tes yang dijalankan, data uji yang dibersihkan.
+
+## Mode satu kali jalan
+- Jangan berhenti untuk meminta persetujuan rencana. Langsung kerjakan.
+- Jika ada keputusan kecil, pilih default paling sederhana yang konsisten
+  dengan docs/ dan kode yang ada, lalu tulis di bagian "Asumsi" pada
+  laporan akhir.
+- Berhenti dan bertanya HANYA jika: (1) bertentangan dengan
+  API_CONTRACT.md atau BUSINESS_RULES.md, (2) perlu mengubah
+  prisma/schema.prisma, (3) perlu menghapus data selain data uji.
+- Laporan akhir: asumsi yang diambil, file berubah, hasil test dan
+  build, skenario curl, data uji yang dibersihkan, saran pesan commit.

@@ -35,7 +35,7 @@ Legenda: 🟢 **Siap** = sudah ada di kode dan teruji. ⚪ **Rencana** = belum d
 | `PATCH` | `/v1/musyrif/izin/:id_izin/verify` | Musyrif | 🟢 Siap (tahap 7) |
 | `POST` | `/v1/admin/jobs/tandai-tidak-hadir` | Admin | 🟢 Siap (tahap 8) |
 | `GET` | `/v1/musyrif/dss/santri-kritis` | Musyrif | ✅ Selesai (tahap 10) |
-| `GET` | `/v1/admin/activity-logs` | Admin | ⚪ Rencana (tahap 11) |
+| `GET` | `/v1/admin/activity-logs` | Admin | ✅ Selesai (tahap 11) |
 | `GET` | `/v1/admin/rekap` | Admin | ⚪ Rencana (tahap 12) |
 
 ## Format Respons
@@ -136,7 +136,7 @@ Semua endpoint `/v1/admin/*` hanya untuk role Admin (selain itu 403 `ERR_FORBIDD
 - Body wajib lengkap: `id_jadwal`, `id_masjid`, `latitude_user`, `longitude_user`, `akurasi_meter` (≥ 0), `is_mock_location` (boolean). Ambil koordinat dari Geolocation API (`getCurrentPosition`/`watchPosition`) beserta `accuracy` dan `fakeGps` (Android: `isFromMockProvider`) lalu kirim apa adanya — semua pengecekan di server.
 - Urutan penolakan server: mock location → akurasi > 50 m → jadwal/masjid tidak ada (404) → di luar jam presensi → di luar radius → dobel (409). Karena urut, kalau GPS palsu Anda tidak akan pernah tahu jarak/radiusnya.
 - Jam presensi memakai **jam server WIB**, bukan jam HP — jangan pernah membandingkan waktu sendiri di frontend untuk menentukan boleh presensi atau tidak; biarkan server yang menolak.
-- Respons sukses 201: `{ "status_presensi": "Hadir", "jarak_meter": 55.6 }`. `jarak_meter` dibulatkan 2 desimal, boleh ditampilkan sebagai bukti jarak; tidak dikirim balik ke server.
+- Respons sukses 201: `{ "status_presensi": "Hadir", "nama_sholat": "Subuh", "jarak_meter": 55.6 }`. `jarak_meter` dibulatkan 2 desimal, boleh ditampilkan sebagai bukti jarak; tidak dikirim balik ke server. `nama_sholat` adalah field tambahan sejak tahap 11 (nama jadwal yang dipakai) — aman ditampilkan sebagai konfirmasi shalat apa yang baru dicatat.
 - Satu presensi per jadwal per hari. Kalau user menekan tombol dua kali dan mendapat 409 `ERR_ALREADY_PRESENT`, anggap sebagai sukses (presensi pertama sudah tercatat).
 
 ## Catatan Izin (`POST /v1/izin`, `GET /v1/izin/saya`, `GET /v1/musyrif/izin`, `PATCH /v1/musyrif/izin/:id_izin/verify`)
@@ -161,3 +161,14 @@ Semua endpoint `/v1/admin/*` hanya untuk role Admin (selain itu 403 `ERR_FORBIDD
 - Respons memuat `kategori_risiko: "KRITIS"`, `rasio_kehadiran` (persen 1 desimal), `streak_alpha`, `jumlah: { hadir, tidak_hadir, izin }`, `alasan` (`"rasio"` dan/atau `"streak"`), dan `rekomendasi_tindakan` (teks dari server — tampilkan apa adanya, jangan susun sendiri).
 - Urutan sudah dihitung server: rasio paling rendah dulu. Periode penilaian = `DSS_PERIODE_HARI` hari terakhir termasuk hari ini (WIB, default 30); hari tanpa baris presensi (mis. server sempat mati dan belum di-backfill) tidak dihitung sebagai alpha — backfill via `POST /v1/admin/jobs/tandai-tidak-hadir`.
 - Data `jumlah` dipakai untuk menampilkan pecahan (mis. "8 dari 11 hari terhitung hadir"); `Izin` tidak mengurangi skor dan bukan alpha.
+
+## Catatan Activity Log (`GET /v1/admin/activity-logs`, BR-11)
+
+- **Hanya Admin**; **hanya-baca** — tidak ada endpoint menambah, mengubah, atau menghapus log (append-only). Memanggil endpoint GET ini juga tidak menciptakan log baru (GET tidak pernah dicatat).
+- Respons **bukan array**: baca `data.logs` (array) dan `data.pagination` (`{ page, limit, total, total_pages }`) — bukan `data` langsung seperti kebanyakan endpoint lain.
+- Filter query (semua opsional, exact match): `role` (`Mahasantri`|`Musyrif`|`Admin`), `username`, `modul` (`Auth`|`Presensi`|`Izin`|`Masjid`|`Jadwal`|`Mahasantri`|`Jobs`), `from`/`to` (format `YYYY-MM-DD`, **sudah dihitung server dalam WIB** — `from` = sejak awal hari itu WIB, `to` = sampai akhir hari itu WIB), `page` (mulai 1, default 1), `limit` (default 20, maksimum 100). Nilai tidak valid → 400 `ERR_VALIDATION` (mis. `limit=101`, `page=0`, `role=Kasir`).
+- Urutan selalu terbaru dulu; `page` di luar jangkauan → `logs: []` (bukan error). Tampilkan `total_pages` untuk komponen paginasi.
+- `created_at` dikirim UTC — konversi ke WIB untuk ditampilkan (`+7 jam`), atau gunakan filter `from`/`to` untuk logika "hari".
+- Teks `aktivitas` sudah disusun server, maksimum 500 karakter — **tampilkan apa adanya** (contoh: `Presensi Subuh berhasil, jarak 23 m`, `Memverifikasi izin 24050505050 menjadi Disetujui`, `Pemicu manual job tandai-tidak-hadir 2026-10-18: Tidak_Hadir 5, Izin 1 (total 6)`). Untuk UPDATE/DELETE, teks memakai `id`, bukan nama (lihat API_CONTRACT).
+- Aktivitas **tercatat otomatis** untuk: login (sukses **dan** gagal), presensi, pengajuan/verifikasi izin, Masjid & Jadwal buat/ubah/hapus, reset device, dan pemicu job manual. Aksi baru di luar daftar itu **tidak otomatis tercatat** — harus ditambahkan `@Audit` di route.
+- Tidak pernah ada nilai password/token/`device_id` di kolom mana pun — aman dirender langsung.

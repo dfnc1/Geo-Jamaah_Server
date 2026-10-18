@@ -53,7 +53,7 @@
 | 📝 **Pengajuan Izin** | Mahasantri mengajukan izin, Musyrif menyetujui atau menolak |
 | 🚨 **Early Warning System (EWS)** | Mendeteksi santri kritis: kehadiran < 75% atau 3× alpha berturut-turut |
 | 🔐 **RBAC** | Tiga role: **Mahasantri**, **Musyrif**, dan **Admin** |
-| 📊 **Activity Logs** | Audit trail seluruh aktivitas pengguna untuk keperluan Admin |
+| 📊 **Activity Logs** | Audit trail otomatis lewat interceptor `@Audit` (login sukses/gagal, presensi, izin, master data, reset device, pemicu job) + endpoint daftar log **hanya-baca** untuk Admin, tanpa password/token |
 
 ---
 
@@ -94,6 +94,14 @@ Geo-Jamaah_Server/
 │   │   ├── mahasantri/         # Reset device Mahasantri
 │   │   ├── masjid/             # CRUD masjid
 │   │   └── admin.module.ts     # Menggabungkan ketiga module di atas
+│   ├── activity-log/            # Activity log / audit trail (tahap 11)
+│   │   ├── dto/                 # DTO query & response endpoint log
+│   │   ├── activity-log.controller.ts  # GET /v1/admin/activity-logs (Admin)
+│   │   ├── activity-log.interceptor.ts # APP_INTERCEPTOR: baca @Audit lalu catat
+│   │   ├── activity-log.module.ts
+│   │   ├── activity-log.service.ts     # Tulis fire-and-forget + cari(filter, pagination)
+│   │   ├── audit.decorator.ts   # @Audit(modul, teks, { catatGagal? })
+│   │   └── audit-teks.ts        # Fungsi murni pembentuk teks aktivitas
 │   ├── auth/                   # Autentikasi (login, JWT, guard)
 │   │   ├── decorators/         # @Public(), @Roles()
 │   │   ├── dto/
@@ -292,6 +300,7 @@ Base path: `/v1` | Swagger UI: `/docs`
 | `PATCH` | `/v1/musyrif/izin/:id_izin/verify` | Musyrif | Verifikasi Disetujui/Ditolak (state machine anti-race) |
 | `POST` | `/v1/admin/jobs/tandai-tidak-hadir` | Admin | Pemicu manual job Tidak_Hadir/Izin (BR-05; cron juga jalan otomatis) |
 | `GET` | `/v1/musyrif/dss/santri-kritis` | Musyrif | Daftar santri kritis: rasio < 75% atau streak alpha ≥ 3 (BR-08) |
+| `GET` | `/v1/admin/activity-logs` | Admin | Daftar activity log (filter role/username/modul/tanggal, pagination; BR-11) |
 
 **Rencana (belum diimplementasikan):**
 
@@ -300,7 +309,6 @@ Base path: `/v1` | Swagger UI: `/docs`
 | `GET` | `/v1/presensi/hari-ini` | Mahasantri | 6 |
 | `GET` | `/v1/presensi/riwayat` | Mahasantri | 6 |
 | `POST` | `/v1/izin/lampiran` | Mahasantri | 7 (upload MinIO) |
-| `GET` | `/v1/admin/activity-logs` | Admin | 11 |
 | `GET` | `/v1/admin/rekap` | Admin | 12 |
 
 > Lihat [`docs/API_CONTRACT.md`](./docs/API_CONTRACT.md) untuk dokumentasi lengkap.
@@ -368,7 +376,7 @@ Proyek ini menggunakan [Conventional Commits](https://www.conventionalcommits.or
 | Scheduled job `Tidak_Hadir` | ✅ Selesai | Cron `@nestjs/schedule` tiap menit (Asia/Jakarta) + pemicu manual Admin; izin Disetujui → status `Izin`; idempoten (skipDuplicates, Hadir tidak ditimpa); baris otomatis: masjid utama + koordinat 0,0; 21 unit test |
 | Monitoring Musyrif & grafik | ⏳ Belum Dimulai | Tahap 9 |
 | DSS & EWS | ✅ Selesai | Tahap 10: `GET /v1/musyrif/dss/santri-kritis` (rasio = Hadir+Manual / (baris presensi periode − Izin), streak alpha; 29 unit test) |
-| Activity log | ⏳ Belum Dimulai | Tahap 11 |
+| Activity log | ✅ Selesai | Tahap 11: interceptor `@Audit` + `APP_INTERCEPTOR` (11 titik aksi, GET tidak dicatat, teks eksplisit tanpa password/token/`device_id`, gagal menulis log tidak menggagalkan request) + `GET /v1/admin/activity-logs` (hanya Admin, filter WIB & pagination); 61 unit test |
 | Rekap Admin & grafik | ⏳ Belum Dimulai | Tahap 12 |
 | Testing & QA | ⏳ Belum Dimulai | Tahap 13 (konfigurasi Jest + e2e bawaan belum diganti) |
 | Docker aplikasi | 🟡 Sebagian | Baru service Postgres; Dockerfile & service `api` belum (tahap 14) |

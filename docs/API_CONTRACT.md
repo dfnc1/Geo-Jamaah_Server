@@ -72,6 +72,14 @@ Kirim token di header: `Authorization: Bearer <access_token>`.
   - 401 `ERR_DEVICE_MISMATCH` — akun/perangkat sudah terikat ke perangkat atau akun lain
   - 403 `ERR_ACCOUNT_INACTIVE` — Mahasantri dengan `status_aktif = false`
   - 429 `ERR_TOO_MANY_REQUESTS` — melewati `THROTTLE_LOGIN_LIMIT` percobaan per menit per IP (default 20)
+- **Activity log (BR-11)** — endpoint ini adalah satu-satunya aksi yang juga **dicatat saat gagal**; aksi lain hanya dicatat saat sukses. Dicatat oleh interceptor global, teksnya dibentuk fungsi murni, bukan body mentah, dan **tidak pernah memuat nilai password/token/`device_id`**:
+  - Sukses → `Login berhasil` dengan role asli dari token.
+  - 401 `ERR_INVALID_CREDENTIALS` → `Login gagal: username atau kata sandi salah` (username diambil dari body, **dipotong maks 100 karakter**); bila username tak terdaftar → `Login gagal: username tidak terdaftar`.
+  - 400 `ERR_DEVICE_ID_REQUIRED` → `Login gagal: perangkat wajib diisi untuk Mahasantri`
+  - 401 `ERR_DEVICE_MISMATCH` → `Login gagal: perangkat sudah terikat akun lain`
+  - 403 `ERR_ACCOUNT_INACTIVE` → `Login gagal: akun tidak aktif`
+  - Lainnya (mis. 400 `ERR_VALIDATION`) → `Login gagal (<kode error>)`
+  - **Catatan keputusan**: untuk username yang tidak terdaftar, kolom `role` diisi **placeholder `Mahasantri`** — hanya penanda karena role asli memang tidak ada (1 query lookup `pengguna` by username dipakai untuk role asli pada kasus lainnya). Gagal karena throttler/401 JWT tidak dicatat (terjadi di luar handler, sebelum interceptor).
 
 ---
 
@@ -185,8 +193,9 @@ Kirim token di header: `Authorization: Bearer <access_token>`.
   5. jarak Haversine user ↔ masjid > `radius_toleransi` → 400 `ERR_GEOFENCE_RADIUS_EXCEEDED` (jarak tepat sama dengan radius diterima)
   6. disimpan dengan status `Hadir`; presensi ganda per jadwal per hari ditolak 409 `ERR_ALREADY_PRESENT` (unique constraint `@@unique([nim, id_jadwal, tanggal])`, aman terhadap race condition)
 - `tanggal` dihitung dari tanggal WIB saat ini.
-- 201: `{ "status_presensi": "Hadir", "jarak_meter": 55.6 }`
+- 201: `{ "status_presensi": "Hadir", "nama_sholat": "Subuh", "jarak_meter": 55.6 }`
   - `jarak_meter` = jarak Haversine dalam meter, dibulatkan 2 desimal (hanya untuk response; tidak disimpan ke database).
+  - `nama_sholat` = nama jadwal terkait (field **tambahan / additive** sejak tahap 11, dipakai untuk teks activity log `Presensi <nama> berhasil, jarak <n> m` tanpa query tambahan).
 - Error: 400 (`ERR_VALIDATION`, `ERR_MOCK_LOCATION`, `ERR_GPS_ACCURACY_LOW`, `ERR_TIME_WINDOW_INVALID`, `ERR_GEOFENCE_RADIUS_EXCEEDED`), 401, 403, 404 (`ERR_JADWAL_NOT_FOUND` / `ERR_MASJID_NOT_FOUND` / `ERR_MAHASANTRI_NOT_FOUND`), 409 `ERR_ALREADY_PRESENT`
 
 ---
@@ -294,18 +303,52 @@ Kirim token di header: `Authorization: Bearer <access_token>`.
 
 ---
 
+## ✅ GET /v1/admin/activity-logs
+- Akses: Admin saja (`@Roles(Role.Admin)`); Musyrif/Mahasantri → 403 `ERR_FORBIDDEN_ROLE`, tanpa token → 401. **Read-only** — tidak ada endpoint ubah/hapus (append-only, BR-11). Request GET tidak pernah menciptakan log baru.
+- Query (semua opsional):
+  | Param | Tipe | Default | Ketentuan |
+  |---|---|---|---|
+  | `role` | `Mahasantri \\| Musyrif \\| Admin` | — | exact match |
+  | `username` | string | — | exact match (bukan substring) |
+  | `modul` | `Auth \\| Presensi \\| Izin \\| Masjid \\| Jadwal \\| Mahasantri \\| Jobs` | — | exact match |
+  | `from` | `YYYY-MM-DD` | — | `created_at` **≥ awal hari WIB** tanggal itu (17:00 UTC hari sebelumnya) |
+  | `to` | `YYYY-MM-DD` | — | `created_at` **≤ akhir hari WIB** tanggal itu (23:59:59.999 WIB) |
+  | `page` | int ≥ 1 | `1` | nomor halaman |
+  | `limit` | int 1–100 | `20` | ukuran halaman, maksimum **100** |
+- Parameter tidak valid (format tanggal salah, `page=0`, `limit=0`, `limit>101`, `role` di luar enum) → 400 `ERR_VALIDATION`.
+- Urutan: `created_at` DESC lalu `id_log` DESC (terbaru dulu, stabil).
+- 200: **Respons berupa objek** (berbeda dari endpoint lain yang `data`-nya array — klien membaca `data.logs` dan `data.pagination`):
+  ```json
+  {
+    "success": true, "statusCode": 200, "message": "Operasi berhasil",
+    "data": {
+      "logs": [
+        { "id_log": "uuid", "username": "admin", "role": "Admin", "modul": "Masjid", "aktivitas": "Mengubah masjid 00000000-0000-4000-8000-000000000001", "created_at": "2026-10-18T14:59:28.044Z" }
+      ],
+      "pagination": { "page": 1, "limit": 20, "total": 17, "total_pages": 1 }
+    }
+  }
+  ```
+  - `total_pages = ceil(total / limit)`; `total = 0` → `total_pages = 0`; halaman di luar jangkauan → `logs = []` (bukan 404).
+  - `created_at` selalu UTC (format standar ISO) — klien yang menampilkan "hari WIB" memakai `from`/`to` (sudah dihitung server dalam WIB) atau konversi lokal.
+- Modul yang tercatat: `Auth` (login sukses & gagal), `Presensi`, `Izin`, `Masjid`, `Jadwal`, `Mahasantri` (reset device), `Jobs` (pemicu manual).
+- Teks `aktivitas` selalu eksplisit, maksimum 500 karakter, contoh:
+  - `Login berhasil` / `Login gagal: username tidak terdaftar`
+  - `Presensi Subuh berhasil, jarak 23 m`
+  - `Mengajukan izin Sakit tanggal 2026-10-20`
+  - `Memverifikasi izin 24050505050 menjadi Disetujui`
+  - `Membuat masjid Masjid Baru` / `Mengubah masjid <id>` / `Menghapus masjid <id>`
+  - `Membuat jadwal sholat Terawih` / `Mengubah jadwal sholat <id>` / `Menghapus jadwal sholat <id>`
+  - `Reset device Mahasantri 24060505051 (santri_dua)`
+  - `Pemicu manual job tandai-tidak-hadir 2026-10-18: Tidak_Hadir 5, Izin 1 (total 6)`
+  - **UPDATE/DELETE memakai `id`** (respons DELETE hanya memuat id), CREATE memakai nama — keputusan dokumen.
+- Error: 400 `ERR_VALIDATION`, 401, 403 `ERR_FORBIDDEN_ROLE`.
+
+---
+
 # Endpoint Rencana (📋 Belum Diimplementasikan)
 
 Daftar fitur dari PRD yang belum punya kode. Jangan dipanggil frontend sebelum kode ada. Perlu diputuskan detailnya sebelum tahap terkait dikerjakan.
-
-## 📋 GET /v1/admin/activity-logs
-- Akses: Admin
-- Query: `role` (opsional), `username` (opsional), `modul` (opsional), `from`, `to` (opsional, ISO date), `page`, `limit`
-- 200: daftar log terbaru dulu
-  ```json
-  [{ "id_log": "uuid", "username": "string", "role": "Admin", "modul": "Masjid", "aktivitas": "Mengubah radius toleransi", "created_at": "2026-10-05T08:00:00.000Z" }]
-  ```
-- Error: 401, 403
 
 ## 📋 Endpoint Rencana Lainnya
 - `GET /v1/presensi/hari-ini` (ringkasan 5 shalat hari ini, Mahasantri)
