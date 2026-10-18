@@ -286,6 +286,10 @@ Base path: `/v1` | Swagger UI: `/docs`
 | `DELETE` | `/v1/admin/jadwal-sholat/:id_jadwal` | Admin | Hapus jadwal sholat |
 | `POST` | `/v1/admin/mahasantri/:nim/reset-device` | Admin | Reset `device_id` agar bisa login dari perangkat baru |
 | `POST` | `/v1/presensi` | Mahasantri | Catat presensi geolokasi (Haversine, window time WIB, anti-fake GPS) |
+| `POST` | `/v1/izin` | Mahasantri | Ajukan izin (`id_musyrif` & status `Pending` otomatis) |
+| `GET` | `/v1/izin/saya` | Mahasantri | Daftar izin milik sendiri (terbaru dulu) |
+| `GET` | `/v1/musyrif/izin?status=` | Musyrif | Daftar izin santri binaan (+ `nama_mahasantri`) |
+| `PATCH` | `/v1/musyrif/izin/:id_izin/verify` | Musyrif | Verifikasi Disetujui/Ditolak (state machine anti-race) |
 
 **Rencana (belum diimplementasikan):**
 
@@ -293,9 +297,7 @@ Base path: `/v1` | Swagger UI: `/docs`
 |---|---|---|---|
 | `GET` | `/v1/presensi/hari-ini` | Mahasantri | 6 |
 | `GET` | `/v1/presensi/riwayat` | Mahasantri | 6 |
-| `POST` | `/v1/izin` | Mahasantri | 7 |
-| `GET` | `/v1/izin/saya` | Mahasantri | 7 |
-| `PATCH` | `/v1/musyrif/izin/:id/verify` | Musyrif | 7 |
+| `POST` | `/v1/izin/lampiran` | Mahasantri | 7 (upload MinIO) |
 | `GET` | `/v1/musyrif/dss/santri-kritis` | Musyrif | 10 |
 | `GET` | `/v1/admin/activity-logs` | Admin | 11 |
 | `GET` | `/v1/admin/rekap` | Admin | 12 |
@@ -361,7 +363,7 @@ Proyek ini menggunakan [Conventional Commits](https://www.conventionalcommits.or
 | Master data Admin | ✅ Selesai | CRUD Masjid & Jadwal Sholat, reset device Mahasantri |
 | Modul Presensi (Geofencing) | ✅ Selesai | `POST /v1/presensi`: Haversine, window time jam server WIB, anti-fake GPS, cegah double presensi (P2002 → 409), 16 unit test |
 | Riwayat & ringkasan hari ini | ⏳ Belum Dimulai | Tahap 6 |
-| Modul Izin & lampiran | ⏳ Belum Dimulai | Tahap 7 |
+| Modul Izin & lampiran | 🟡 Sebagian | Tahap 7: izin selesai (ajukan, daftar, filter, verifikasi Musyrif pembina dengan state machine aman race; 24 unit test). Upload lampiran MinIO menyusul |
 | Scheduled job `Tidak_Hadir` | ⏳ Belum Dimulai | Tahap 8 |
 | Monitoring Musyrif & grafik | ⏳ Belum Dimulai | Tahap 9 |
 | DSS & EWS | ⏳ Belum Dimulai | Tahap 10 |

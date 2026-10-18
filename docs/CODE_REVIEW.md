@@ -4,7 +4,7 @@ Legenda: ✅ selesai, 🟡 sebagian, ⬜ belum.
 
 ## Posisi Sekarang
 
-Tahap 1 sampai 5 selesai (setup dasar, auth/RBAC/device binding, seed, master data Admin, dan presensi geolokasi). P1 (env, Swagger, throttler) juga sudah beres. Berikutnya tahap 6 (Riwayat dan ringkasan hari ini). Sisa pekerjaan besar: riwayat, izin, scheduled job, DSS/EWS, activity log, rekap, testing, dan Docker aplikasi.
+Tahap 1 sampai 5 dan tahap 7 (izin, tanpa upload lampiran) selesai (setup dasar, auth/RBAC/device binding, seed, master data Admin, presensi geolokasi, serta pengajuan/daftar/verifikasi izin dengan state machine). P1 (env, Swagger, throttler) juga sudah beres. Berikutnya tahap 6 (Riwayat dan ringkasan hari ini). Sisa pekerjaan besar: riwayat, lampiran izin (MinIO), scheduled job, DSS/EWS, activity log, rekap, testing, dan Docker aplikasi.
 
 ## Status 14 Tahap Backend
 
@@ -51,11 +51,13 @@ Tahap 1 sampai 5 selesai (setup dasar, auth/RBAC/device binding, seed, master da
 - ⬜ Ringkasan 5 shalat hari ini
 - ⬜ Riwayat kehadiran (pagination)
 
-**7. Izin dan lampiran** ⬜
-- ⬜ Pengajuan dan daftar izin milik sendiri
-- ⬜ Verifikasi Musyrif (hanya santri binaan)
-- ⬜ State machine izin
-- ⬜ Upload lampiran ke MinIO
+**7. Izin dan lampiran** 🟡
+- ✅ Pengajuan dan daftar izin milik sendiri (`POST /v1/izin`, `GET /v1/izin/saya`; `id_musyrif` otomatis dari pembina, status awal selalu `Pending`)
+- ✅ Verifikasi Musyrif (hanya santri binaan; `GET /v1/musyrif/izin?status=` + `PATCH .../verify`)
+- ✅ State machine izin: `Pending → Disetujui | Ditolak`, final tak bisa diubah; update bersyarat pada `Pending` (aman race, tes paralel 1×200 + 1×409)
+- ✅ Unit test state machine + service (mock Prisma): 24 unit test baru
+- ✅ Tes manual izin (20 skenario: validasi, RBAC, 403 bukan pembina, 409 dobel, 404, race paralel)
+- ⬜ Upload lampiran ke MinIO (`POST /v1/izin/lampiran`; `bukti_lampiran` sekarang hanya string opsional)
 
 **8. Scheduled job `Tidak_Hadir`** ⬜
 - ⬜ Tandai santri yang tidak presensi setelah window berakhir
@@ -92,7 +94,7 @@ Tahap 1 sampai 5 selesai (setup dasar, auth/RBAC/device binding, seed, master da
 ## Urutan Pengerjaan Berikutnya
 
 1. Tahap 6 riwayat dan ringkasan
-2. Tahap 7 izin dan lampiran
+2. Tahap 7 lampiran izin (MinIO) — bagian izin sudah selesai
 3. Tahap 8 scheduled job
 4. Tahap 10 DSS dan EWS (sebelum 9, karena fitur unggulan project)
 5. Tahap 9 monitoring dan grafik Musyrif
@@ -101,7 +103,7 @@ Tahap 1 sampai 5 selesai (setup dasar, auth/RBAC/device binding, seed, master da
 8. Tahap 13 testing (unit test inti sudah dimulai di tahap 5)
 9. Tahap 14 Docker aplikasi
 
-Jika waktu terbatas, potong dari bawah. Yang wajib: tahap 6, 7, 8, 10, 11. Tahap 9 dan 12 cukup satu endpoint grafik per role. Tahap 13 cukup unit test inti. Tahap 14 paling akhir.
+Jika waktu terbatas, potong dari bawah. Yang wajib: tahap 6, 8, 10, 11 (izin sudah selesai; lampiran MinIO boleh menyusul). Tahap 9 dan 12 cukup satu endpoint grafik per role. Tahap 13 cukup unit test inti. Tahap 14 paling akhir.
 
 Sebelum tahap 13, bereskan backlog P2 no. 10 (sisa mengganti e2e bawaan).
 

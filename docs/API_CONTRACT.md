@@ -190,29 +190,63 @@ Kirim token di header: `Authorization: Bearer <access_token>`.
 
 ---
 
-# Endpoint Rencana (📋 Belum Diimplementasikan)
-
-Daftar fitur dari PRD yang belum punya kode. Jangan dipanggil frontend sebelum kode ada. Perlu diputuskan detailnya sebelum tahap terkait dikerjakan.
-
-## 📋 POST /v1/izin
-- Akses: Mahasantri
+## ✅ POST /v1/izin
+- Akses: Mahasantri (`@Roles(Role.Mahasantri)`). `nim` dan `id_musyrif` diambil dari profil Mahasantri (klaim `sub` → profil), bukan dari body.
 - Body:
   ```json
   {
     "jenis_izin": "Sakit | Pulang | Tugas_Kampus",
     "tanggal_izin": "2026-10-05",
-    "alasan": "string",
-    "bukti_lampiran": "object-key (opsional)"
+    "alasan": "Sakit demam, sudah ke puskesmas",
+    "bukti_lampiran": "izin/24050505050/2026-10-05.jpg"
   }
   ```
-- 201: pengajuan izin dikirim ke musyrif, status `Pending`.
-- Error: 400 validasi, 401, 403
+- Validasi body:
+  - `jenis_izin` wajib, salah satu dari enum `JenisIzin` (`Sakit`, `Pulang`, `Tugas_Kampus`).
+  - `tanggal_izin` wajib, format ketat `YYYY-MM-DD` dan harus tanggal kalender valid (`2026-02-30` → 400). **Tanggal lampau diizinkan** (izin menyusul).
+  - `alasan` wajib (tidak boleh kosong/spasi saja), maksimal **500** karakter.
+  - `bukti_lampiran` opsional; string (object key) maksimal **255** karakter. Tidak dikirim = tanpa lampiran; `null` eksplisit → 400. Upload file (MinIO) masih rencana (`POST /v1/izin/lampiran`).
+  - Field lain (mis. `status_persetujuan`, `id_musyrif`) **dibuang** oleh whitelist DTO.
+- `id_musyrif` diisi **otomatis** dari Musyrif pembina profil Mahasantri; status awal **selalu `Pending`**.
+- 201: pengajuan izin tercatat, respons field polos:
+  ```json
+  { "id_izin": "uuid", "nim": "24050505050", "jenis_izin": "Sakit", "tanggal_izin": "2026-10-05T00:00:00.000Z", "alasan": "...", "bukti_lampiran": null, "status_persetujuan": "Pending" }
+  ```
+  - `tanggal_izin` disimpan & dikembalikan sebagai Date tengah-malam UTC (= tanggal WIB); frontend pakai 10 karakter pertama (`.slice(0, 10)`) untuk menampilkan `YYYY-MM-DD`.
+- Error: 400 `ERR_VALIDATION`, 401 `ERR_UNAUTHORIZED`, 403 `ERR_FORBIDDEN_ROLE`, 404 `ERR_MAHASANTRI_NOT_FOUND`
 
-## 📋 PATCH /v1/musyrif/izin/:id_izin/verify
-- Akses: Musyrif (pembina dari mahasantri pengaju)
-- Body: `{ "status_persetujuan": "Disetujui | Ditolak" }`
-- 200: status izin diperbarui.
-- Error: 403 `ERR_NOT_YOUR_STUDENT`, 404 `ERR_IZIN_NOT_FOUND`, 409 `ERR_IZIN_ALREADY_DECIDED`
+## ✅ GET /v1/izin/saya
+- Akses: Mahasantri. Daftar izin milik sendiri.
+- Query: tidak ada.
+- Urutan: **terbaru dulu** — `tanggal_izin` menurun, seri `id_izin` menurun.
+- 200: array berisi bentuk data polos yang sama seperti respons `POST /v1/izin` (tanpa `nama_mahasantri`).
+- Error: 401, 403, 404 `ERR_MAHASANTRI_NOT_FOUND`
+
+## ✅ GET /v1/musyrif/izin
+- Akses: Musyrif (`@Roles(Role.Musyrif)`). Hanya menampilkan izin milik mahasantri **binaannya**.
+- Query: `status` (opsional: `Pending` | `Disetujui` | `Ditolak`; kosongkan untuk semua). Nilai lain → 400 `ERR_VALIDATION`.
+- Urutan: terbaru dulu (`tanggal_izin` menurun, seri `id_izin` menurun).
+- 200: array field izin + `nama_mahasantri`:
+  ```json
+  [{ "id_izin": "uuid", "nim": "24050505050", "jenis_izin": "Sakit", "tanggal_izin": "2026-10-17T00:00:00.000Z", "alasan": "...", "bukti_lampiran": null, "status_persetujuan": "Pending", "nama_mahasantri": "santri_satu" }]
+  ```
+- Error: 400 `ERR_VALIDATION`, 401, 403 `ERR_FORBIDDEN_ROLE`, 404 `ERR_MUSYRIF_NOT_FOUND` (token Musyrif tanpa profil — defensif)
+
+## ✅ PATCH /v1/musyrif/izin/:id_izin/verify
+- Akses: Musyrif pembina dari mahasantri pengaju (bukan pembina → 403 `ERR_NOT_YOUR_STUDENT`).
+- Param: `id_izin` wajib UUID (bukan UUID → 400 `ERR_VALIDATION`).
+- Body: `{ "status_persetujuan": "Disetujui | Ditolak" }` — `Pending` ditolak (400) karena verify = memutuskan.
+- State machine (BR-07): `Pending → Disetujui | Ditolak`; status final tidak bisa diubah lagi.
+- **Aman terhadap race condition**: perubahan memakai `updateMany` dengan syarat `status_persetujuan = 'Pending'` (atomic, bukan cek-lalu-update). Dua verify bersamaan → hanya satu yang berhasil; sisanya 409.
+- Urutan pemeriksaan: 404 izin tak ada → 403 bukan pembina → 409 bukan Pending → update bersyarat → bila kalah race (count 0, baris masih ada) → 409.
+- 200: data izin terbaru + `nama_mahasantri` (satu kali klik hanya mengubah sekali; klik kedua → 409).
+- Error: 400 (`ERR_VALIDATION`), 401, 403 (`ERR_FORBIDDEN_ROLE` / `ERR_NOT_YOUR_STUDENT`), 404 (`ERR_IZIN_NOT_FOUND` / `ERR_MUSYRIF_NOT_FOUND`), 409 `ERR_IZIN_ALREADY_DECIDED`
+
+---
+
+# Endpoint Rencana (📋 Belum Diimplementasikan)
+
+Daftar fitur dari PRD yang belum punya kode. Jangan dipanggil frontend sebelum kode ada. Perlu diputuskan detailnya sebelum tahap terkait dikerjakan.
 
 ## 📋 GET /v1/musyrif/dss/santri-kritis
 - Akses: Musyrif
@@ -243,7 +277,6 @@ Daftar fitur dari PRD yang belum punya kode. Jangan dipanggil frontend sebelum k
 - `GET /v1/presensi/hari-ini` (ringkasan 5 shalat hari ini, Mahasantri)
 - `GET /v1/presensi/riwayat` (riwayat kehadiran, Mahasantri)
 - `GET /v1/musyrif/presensi/monitoring` (dashboard real-time Musyrif)
-- `GET /v1/izin/saya` dan `GET /v1/musyrif/izin?status=Pending`
 - `POST /v1/izin/lampiran` (upload ke MinIO, mengembalikan object key)
 - `GET /v1/admin/rekap` (rekapitulasi global)
 - `GET /v1/admin/mahasantri`, `GET/PATCH/DELETE /v1/admin/mahasantri/:nim` (CRUD lengkap Mahasantri; sekarang hanya endpoint reset-device)

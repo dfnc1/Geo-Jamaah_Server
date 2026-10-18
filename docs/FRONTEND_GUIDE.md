@@ -28,9 +28,11 @@ Legenda: 🟢 **Siap** = sudah ada di kode dan teruji. ⚪ **Rencana** = belum d
 | `POST` | `/v1/presensi` | Mahasantri | 🟢 Siap |
 | `GET` | `/v1/presensi/hari-ini` | Mahasantri | ⚪ Rencana (tahap 6) |
 | `GET` | `/v1/presensi/riwayat` | Mahasantri | ⚪ Rencana (tahap 6) |
-| `POST` | `/v1/izin` | Mahasantri | ⚪ Rencana (tahap 7) |
-| `GET` | `/v1/izin/saya` | Mahasantri | ⚪ Rencana (tahap 7) |
-| `PATCH` | `/v1/musyrif/izin/:id_izin/verify` | Musyrif | ⚪ Rencana (tahap 7) |
+| `POST` | `/v1/izin` | Mahasantri | 🟢 Siap (tahap 7) |
+| `GET` | `/v1/izin/saya` | Mahasantri | 🟢 Siap (tahap 7) |
+| `POST` | `/v1/izin/lampiran` | Mahasantri | ⚪ Rencana (upload MinIO) |
+| `GET` | `/v1/musyrif/izin?status=Pending` | Musyrif | 🟢 Siap (tahap 7) |
+| `PATCH` | `/v1/musyrif/izin/:id_izin/verify` | Musyrif | 🟢 Siap (tahap 7) |
 | `GET` | `/v1/musyrif/dss/santri-kritis` | Musyrif | ⚪ Rencana (tahap 10) |
 | `GET` | `/v1/admin/activity-logs` | Admin | ⚪ Rencana (tahap 11) |
 | `GET` | `/v1/admin/rekap` | Admin | ⚪ Rencana (tahap 12) |
@@ -66,11 +68,15 @@ Baca `error` untuk menentukan penanganan; `message` untuk ditampilkan ke user.
 | `ERR_DEVICE_MISMATCH` | 401 | Akun terikat perangkat lain → minta Admin melakukan reset device |
 | `ERR_ACCOUNT_INACTIVE` | 403 | Akun Mahasantri dinonaktifkan |
 | `ERR_FORBIDDEN_ROLE` | 403 | Role login tidak punya akses ke endpoint itu |
+| `ERR_NOT_YOUR_STUDENT` | 403 | Musyrif mencoba memverifikasi izin santri yang bukan binaannya |
 | `ERR_MASJID_NOT_FOUND` | 404 | Data masjid tidak ada |
 | `ERR_JADWAL_NOT_FOUND` | 404 | Data jadwal sholat tidak ada |
 | `ERR_MAHASANTRI_NOT_FOUND` | 404 | NIM tidak terdaftar |
+| `ERR_MUSYRIF_NOT_FOUND` | 404 | Token Musyrif tapi profil musyrif tidak ada di database |
+| `ERR_IZIN_NOT_FOUND` | 404 | ID izin tidak ada |
 | `ERR_IN_USE` | 409 | Masjid/jadwal masih dipakai presensi, tidak bisa dihapus |
 | `ERR_ALREADY_PRESENT` | 409 | Sudah presensi untuk jadwal yang sama hari ini |
+| `ERR_IZIN_ALREADY_DECIDED` | 409 | Izin sudah pernah diputuskan (state final), klik/kirim ulang tidak mengubah apa pun |
 | `ERR_TOO_MANY_REQUESTS` | 429 | Melewati rate limit → tunggu lalu coba lagi |
 | `ERR_INTERNAL` | 500 | Gangguan server → laporkan/coba lagi |
 
@@ -131,3 +137,13 @@ Semua endpoint `/v1/admin/*` hanya untuk role Admin (selain itu 403 `ERR_FORBIDD
 - Jam presensi memakai **jam server WIB**, bukan jam HP — jangan pernah membandingkan waktu sendiri di frontend untuk menentukan boleh presensi atau tidak; biarkan server yang menolak.
 - Respons sukses 201: `{ "status_presensi": "Hadir", "jarak_meter": 55.6 }`. `jarak_meter` dibulatkan 2 desimal, boleh ditampilkan sebagai bukti jarak; tidak dikirim balik ke server.
 - Satu presensi per jadwal per hari. Kalau user menekan tombol dua kali dan mendapat 409 `ERR_ALREADY_PRESENT`, anggap sebagai sukses (presensi pertama sudah tercatat).
+
+## Catatan Izin (`POST /v1/izin`, `GET /v1/izin/saya`, `GET /v1/musyrif/izin`, `PATCH /v1/musyrif/izin/:id_izin/verify`)
+
+- **Ajukan (Mahasantri)** — kirim `jenis_izin` (`Sakit` | `Pulang` | `Tugas_Kampus`), `tanggal_izin` format `YYYY-MM-DD` (tanggal kalender valid; lampau diizinkan), `alasan` wajib maks 500 karakter. `bukti_lampiran` opsional string (object key, maks 255) — kirim saja tidak ada, `null` eksplisit ditolak 400. `id_musyrif` dan status `Pending` diisi server; jangan kirim `status_persetujuan` (dibuang whitelist).
+- **Respons `tanggal_izin`** selalu ISO datetime tengah-malam UTC (mis. `2026-10-05T00:00:00.000Z`); tampilkan 10 karakter pertamanya (`.slice(0, 10)`).
+- **Daftar sendiri** — `GET /v1/izin/saya` mengurutkan terbaru dulu (`tanggal_izin` menurun).
+- **Musyrif** — `GET /v1/musyrif/izin` hanya menampilkan izin santri binaan dan menyertakan `nama_mahasantri`; respons Mahasantri tidak punya field itu. Filter `?status=Pending|Disetujui|Ditolak` opsional; nilai lain → 400.
+- **Verifikasi** — hanya `Disetujui`/`Ditolak` (kirim `Pending` → 400). Urutan respons: 404 `ERR_IZIN_NOT_FOUND` (ID tak ada) → 403 `ERR_NOT_YOUR_STUDENT` (bukan pembina) → 409 `ERR_IZIN_ALREADY_DECIDED` (sudah diputuskan).
+- **Setelah keputusan, izin final** — tombol verifikasi matikan di UI setelah 200. Dua klik/dua request bersamaan tidak merusak apa pun: server hanya mengizinkan perubahan lewat update bersyarat pada status `Pending`, jadi hanya satu yang menang; sisanya 409. Bila mendapat 409, refresh daftar — status sebenarnya sudah berubah.
+- **Belum ada upload lampiran** — `POST /v1/izin/lampiran` (MinIO) masih rencana; endpoint `POST /v1/izin` tidak menerima file/multipart, hanya string object key.
