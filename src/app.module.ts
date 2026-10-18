@@ -11,6 +11,7 @@ import { JwtAuthGuard } from '@src/auth/guard/jwt-auth.guard';
 import { RolesGuard } from '@src/auth/guard/roles.guard';
 import { APP_GUARD } from '@nestjs/core';
 import { JobsModule } from './jobs/jobs.module';
+import { DssModule } from './dss/dss.module';
 import { parseThrottleLimit } from './common/throttle-limit';
 
 @Module({
@@ -45,6 +46,7 @@ import { parseThrottleLimit } from './common/throttle-limit';
     PresensiModule,
     IzinModule,
     JobsModule,
+    DssModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
