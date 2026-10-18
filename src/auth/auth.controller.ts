@@ -1,3 +1,6 @@
+// .env harus dimuat sebelum kelas didefinisikan: @Throttle di bawah
+// membaca process.env.THROTTLE_LOGIN_LIMIT pada waktu import.
+import '@src/load-env';
 import { Controller, Post, Body } from '@nestjs/common';
 import {
   ApiExtraModels,
@@ -15,6 +18,14 @@ import {
   MusyrifProfileDto,
 } from './dto/login.dto';
 import { Public } from '@src/auth/decorators/public.decorator';
+import { parseThrottleLimit } from '@src/common/throttle-limit';
+
+/** Batas login per 60 detik per IP, dari env (default 20). */
+const LOGIN_RATE_LIMIT = parseThrottleLimit(
+  process.env.THROTTLE_LOGIN_LIMIT,
+  20,
+  'THROTTLE_LOGIN_LIMIT',
+);
 
 /** Skema respons sukses yang dibungkus TransformInterceptor. */
 function loginSuccessSchema() {
@@ -50,13 +61,13 @@ export class AuthController {
 
   @Post('/login')
   @Public()
-  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @Throttle({ default: { limit: LOGIN_RATE_LIMIT, ttl: 60_000 } })
   @ApiOperation({
     summary: 'Login pengguna',
     description:
       'Mengautentikasi pengguna dan mengembalikan JWT. `device_id` wajib untuk role Mahasantri. ' +
       'Field `user.profil` bernilai Mahasantri, Musyrif, atau null (mis. untuk Admin). ' +
-      'Login dibatasi 5 percobaan per menit per IP.',
+      `Login dibatasi ${LOGIN_RATE_LIMIT} percobaan per menit per IP (env THROTTLE_LOGIN_LIMIT).`,
   })
   @ApiResponse({
     status: 201,

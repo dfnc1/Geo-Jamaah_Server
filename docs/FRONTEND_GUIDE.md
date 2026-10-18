@@ -112,12 +112,12 @@ Baca `error` untuk menentukan penanganan; `message` untuk ditampilkan ke user.
 
 ## Rate Limit
 
-| Endpoint | Batas | Saat dilanggar |
+| Endpoint | Batas (default) | Saat dilanggar |
 |---|---|---|
-| Semua endpoint | 100 request / 60 detik / IP | 429 `ERR_TOO_MANY_REQUESTS` |
-| `POST /v1/auth/login` | 5 percobaan / 60 detik / IP | 429 `ERR_TOO_MANY_REQUESTS` |
+| Semua endpoint | `THROTTLE_GLOBAL_LIMIT` request / 60 detik / IP (default 600) | 429 `ERR_TOO_MANY_REQUESTS` |
+| `POST /v1/auth/login` | `THROTTLE_LOGIN_LIMIT` percobaan / 60 detik / IP (default 20) | 429 `ERR_TOO_MANY_REQUESTS` |
 
-Batas memakai penanda `default` dengan penyimpanan in-memory, jadi reset saat server restart.
+Batas memakai penanda `default` dengan penyimpanan in-memory, jadi reset saat server restart. Kedua nilai bisa dioverride lewat env (bilangan bulat > 0; nilai tidak valid jatuh ke default + `Logger.warn` di log server).
 
 ## Catatan Master Data Admin
 

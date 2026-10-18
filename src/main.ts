@@ -1,3 +1,6 @@
+// Muat .env paling awal supaya semua modul (termasuk dekorator yang
+// membaca process.env saat import) melihat konfigurasi yang sama.
+import './load-env';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { BadRequestException, Logger, ValidationPipe } from '@nestjs/common';

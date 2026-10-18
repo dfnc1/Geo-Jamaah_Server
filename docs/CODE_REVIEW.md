@@ -116,7 +116,7 @@ Sebelum tahap 13, bereskan backlog P2 no. 10 (sisa mengganti e2e bawaan).
 |---|---|---|---|
 | 6 | `.env.example`, sinkronkan `JWT_EXPIRES_IN` dan `CORS_ORIGIN` | ✅ | `JWT_EXPIRES_IN` dibaca lewat `ConfigService` (default `7d`). `CORS_ORIGIN` kosong → origin `'*'` tanpa `credentials` (auth memakai header Bearer); diisi → daftar origin dengan `credentials: true` |
 | 7 | Swagger | ✅ | `@nestjs/swagger` + plugin di `nest-cli.json`. `/docs` dan `/docs-json` dikecualikan dari prefix `v1` |
-| 8 | Throttler login dan timing username tidak ada | ✅ | Global 100/menit; login 5/menit/IP via `@Throttle`. 429 dipetakan ke `ERR_TOO_MANY_REQUESTS` di `HttpExceptionFilter`. Username tidak ada tetap dijalankan `bcrypt.compare` ke hash palsu (cost 12) |
+| 8 | Throttler login dan timing username tidak ada | ✅ | Global `THROTTLE_GLOBAL_LIMIT`/menit (default 600); login `THROTTLE_LOGIN_LIMIT`/menit/IP (default 20) via `@Throttle`, keduanya dari env + fallback `Logger.warn` bila tidak valid. 429 dipetakan ke `ERR_TOO_MANY_REQUESTS` di `HttpExceptionFilter`. Username tidak ada tetap dijalankan `bcrypt.compare` ke hash palsu (cost 12) |
 
 ## Backlog P2 (sambil jalan)
 

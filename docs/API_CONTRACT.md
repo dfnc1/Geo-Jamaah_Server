@@ -28,8 +28,9 @@ Error:
 Kirim token di header: `Authorization: Bearer <access_token>`.
 
 ### Rate Limit
-- Global: 100 request per 60 detik per IP.
-- Login: 5 percobaan per 60 detik per IP (lebih ketat).
+- Global: `THROTTLE_GLOBAL_LIMIT` request per 60 detik per IP — default **600**.
+- Login: `THROTTLE_LOGIN_LIMIT` percobaan per 60 detik per IP — default **20** (lebih ketat).
+- Nilai env harus bilangan bulat > 0; selain itu memakai default plus `Logger.warn` di log server. TTL tetap 60 detik (tidak bisa dioverride).
 
 ---
 
@@ -70,7 +71,7 @@ Kirim token di header: `Authorization: Bearer <access_token>`.
   - 401 `ERR_INVALID_CREDENTIALS` — username tidak ada atau password salah (waktu respons sengaja disamakan lewat hash bcrypt palsu)
   - 401 `ERR_DEVICE_MISMATCH` — akun/perangkat sudah terikat ke perangkat atau akun lain
   - 403 `ERR_ACCOUNT_INACTIVE` — Mahasantri dengan `status_aktif = false`
-  - 429 `ERR_TOO_MANY_REQUESTS` — lebih dari 5 percobaan per menit per IP
+  - 429 `ERR_TOO_MANY_REQUESTS` — melewati `THROTTLE_LOGIN_LIMIT` percobaan per menit per IP (default 20)
 
 ---
 
