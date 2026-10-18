@@ -3,6 +3,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { AdminModule } from './admin/admin.module';
 import { PresensiModule } from './presensi/presensi.module';
+import { IzinModule } from './izin/izin.module';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { JwtAuthGuard } from '@src/auth/guard/jwt-auth.guard';
@@ -28,6 +29,7 @@ import { APP_GUARD } from '@nestjs/core';
     AuthModule,
     AdminModule,
     PresensiModule,
+    IzinModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
