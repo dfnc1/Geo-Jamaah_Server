@@ -8,7 +8,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Prisma](https://img.shields.io/badge/Prisma-7-2D3748?style=flat-square&logo=prisma&logoColor=white)](https://www.prisma.io)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15+-4169E1?style=flat-square&logo=postgresql&logoColor=white)](https://www.postgresql.org)
-[![pnpm](https://img.shields.io/badge/pnpm-9+-F69220?style=flat-square&logo=pnpm&logoColor=white)](https://pnpm.io)
+[![pnpm](https://img.shields.io/badge/pnpm-12+-F69220?style=flat-square&logo=pnpm&logoColor=white)](https://pnpm.io)
 [![License](https://img.shields.io/badge/license-UNLICENSED-red?style=flat-square)](LICENSE)
 
 *Solusi presensi digital berbasis GPS & Decision Support System untuk mahasantri di lingkungan pesantren/boarding*
@@ -61,7 +61,7 @@
 
 | Layer | Teknologi | Versi |
 |---|---|---|
-| **Runtime** | Node.js | 20+ |
+| **Runtime** | Node.js | 24+ |
 | **Framework** | NestJS (TypeScript) | v11 |
 | **Database** | PostgreSQL | 15+ |
 | **ORM** | Prisma | v7 |
@@ -69,7 +69,7 @@
 | **Validasi** | class-validator, class-transformer | — |
 | **Dokumentasi API** | Swagger / OpenAPI (`@nestjs/swagger`) | — |
 | **Storage Lampiran** | MinIO (S3-compatible) | — |
-| **Package Manager** | pnpm | v9+ |
+| **Package Manager** | pnpm | v12+ |
 | **Containerization** | Docker + Docker Compose | — |
 
 ---
@@ -82,17 +82,30 @@ Geo-Jamaah_Server/
 │   ├── API_CONTRACT.md         # Endpoint, request, response, error code
 │   ├── DATABASE_SCHEMA.md      # ERD, constraint, Prisma schema
 │   ├── BUSINESS_RULES.md       # Aturan logika bisnis & state machine
+│   ├── FRONTEND_GUIDE.md       # Panduan integrasi frontend & status endpoint
 │   └── CODE_REVIEW.md          # Catatan code review
 ├── prisma/
-│   └── schema.prisma           # Definisi database schema
+│   ├── migrations/             # Migrasi database
+│   ├── schema.prisma           # Definisi database schema
+│   └── seed.ts                 # Data awal (Admin, Musyrif, Mahasantri, Masjid, Jadwal)
 ├── src/
+│   ├── admin/                  # Master data Admin (tahap 4)
+│   │   ├── jadwal-sholat/      # CRUD jadwal sholat
+│   │   ├── mahasantri/         # Reset device Mahasantri
+│   │   ├── masjid/             # CRUD masjid
+│   │   └── admin.module.ts     # Menggabungkan ketiga module di atas
 │   ├── auth/                   # Autentikasi (login, JWT, guard)
+│   │   ├── decorators/         # @Public(), @Roles()
 │   │   ├── dto/
-│   │   ├── guard/
-│   │   ├── strategies/
+│   │   ├── guard/              # JwtAuthGuard, RolesGuard
+│   │   ├── strategies/         # JwtStrategy
 │   │   ├── auth.controller.ts
 │   │   ├── auth.module.ts
 │   │   └── auth.service.ts
+│   ├── common/                 # Potongan lintas modul
+│   │   ├── filters/            # HttpExceptionFilter (format error contract)
+│   │   ├── interceptors/       # TransformInterceptor (format sukses)
+│   │   └── swagger/            # Helper skema respons untuk dokumentasi
 │   ├── prisma/                 # Prisma service & module
 │   ├── app.module.ts
 │   └── main.ts
@@ -111,14 +124,18 @@ Semua backend contract tersedia di folder [`docs/`](./docs):
 | File | Isi |
 |---|---|
 | [`API_CONTRACT.md`](./docs/API_CONTRACT.md) | Endpoint, request body, response, dan kode error |
-| [`DATABASE_SCHEMA.md`](./docs/DATABASE_SCHEMA.md) | ERD, constraint, dan Prisma schema lengkap |
+| [`DATABASE_SCHEMA.md`](./docs/DATABASE_SCHEMA.md) | ERD, constraint, index, dan Prisma schema lengkap |
 | [`BUSINESS_RULES.md`](./docs/BUSINESS_RULES.md) | Aturan logika bisnis dan state machine |
+| [`FRONTEND_GUIDE.md`](./docs/FRONTEND_GUIDE.md) | Panduan integrasi frontend dan status tiap endpoint |
 | [`CODE_REVIEW.md`](./docs/CODE_REVIEW.md) | Catatan review kode dan keputusan teknis |
 
-> **💡 Tip:** Setelah server berjalan, dokumentasi interaktif Swagger tersedia di:
+> **💡 Tip — Swagger:** Setelah server berjalan, dokumentasi interaktif tersedia di:
 > ```
 > http://localhost:3000/docs
 > ```
+> - Klik **Authorize** (ikon gembok) lalu isi `Bearer <access_token>` dari `POST /v1/auth/login`; token tersimpan selama tab dibuka (`persistAuthorization` aktif).
+> - Spek OpenAPI mentah: `http://localhost:3000/docs-json`.
+> - `/docs` dan `/docs-json` dikecualikan dari prefix global, jadi bukan `/v1/docs`.
 
 ---
 
@@ -128,8 +145,8 @@ Semua backend contract tersedia di folder [`docs/`](./docs):
 
 Pastikan tools berikut sudah terinstall di sistem kamu:
 
-- **Node.js** `v20+` — [Download](https://nodejs.org)
-- **pnpm** `v9+` — `npm i -g pnpm` atau `corepack enable`
+- **Node.js** `v24+` — [Download](https://nodejs.org)
+- **pnpm** `v12+` — `npm i -g pnpm` atau `corepack enable` (`package.json` mengunci `pnpm@12.11.2`)
 - **PostgreSQL** `v15+` — Lokal atau via Docker
 - **Docker** *(opsional, untuk menjalankan database via container)*
 
@@ -157,15 +174,23 @@ Edit file `.env` sesuai konfigurasi lokal kamu:
 
 ```env
 # ── Database ─────────────────────────────────────────────
-DATABASE_URL="postgresql://user:password@localhost:5432/geo_jamaah?schema=public"
+# Sesuaikan user/password dengan docker-compose.yaml
+DATABASE_URL="postgresql://geo:geo_1234@localhost:5432/geo_jamaah?schema=public"
 
 # ── JWT ──────────────────────────────────────────────────
+# Wajib diganti dengan secret acak yang panjang, contoh: openssl rand -hex 32
 JWT_SECRET="ganti-dengan-secret-yang-kuat-dan-panjang"
+# Masa berlaku token (format library `ms`): 30m, 12h, 7d, ...
 JWT_EXPIRES_IN="7d"
 
 # ── App ──────────────────────────────────────────────────
 PORT=3000
 TZ="Asia/Jakarta"
+# Daftar alamat frontend yang diizinkan CORS, pisahkan dengan koma, tanpa spasi.
+# Kosongkan untuk mengizinkan semua origin ('*') tanpa credentials,
+# karena auth memakai header Bearer (bukan cookie).
+# Contoh: CORS_ORIGIN="http://localhost:5173,https://geo-jamaah.example.com"
+CORS_ORIGIN=""
 
 # ── MinIO (Storage Lampiran Izin) ────────────────────────
 MINIO_ENDPOINT="localhost"
@@ -244,17 +269,36 @@ pnpm test:e2e
 
 Base path: `/v1` | Swagger UI: `/docs`
 
+**Sudah diimplementasikan:**
+
 | Method | Endpoint | Role | Deskripsi |
 |---|---|---|---|
 | `POST` | `/v1/auth/login` | Public | Login & dapatkan JWT token |
-| `POST` | `/v1/presensi` | Mahasantri | Submit presensi dengan koordinat GPS |
-| `GET` | `/v1/presensi/hari-ini` | Mahasantri | Ringkasan 5 shalat hari ini |
-| `GET` | `/v1/presensi/riwayat` | Mahasantri | Riwayat kehadiran |
-| `POST` | `/v1/izin` | Mahasantri | Ajukan izin ketidakhadiran |
-| `GET` | `/v1/izin/saya` | Mahasantri | Daftar pengajuan izin milik sendiri |
-| `PATCH` | `/v1/musyrif/izin/:id/verify` | Musyrif | Setujui atau tolak pengajuan izin |
-| `GET` | `/v1/musyrif/dss/santri-kritis` | Musyrif | Daftar santri dengan risiko kehadiran kritis |
-| `GET` | `/v1/admin/activity-logs` | Admin | Audit log seluruh aktivitas sistem |
+| `POST` | `/v1/admin/masjid` | Admin | Tambah masjid |
+| `GET` | `/v1/admin/masjid` | Admin | Daftar masjid |
+| `GET` | `/v1/admin/masjid/:id_masjid` | Admin | Detail masjid |
+| `PATCH` | `/v1/admin/masjid/:id_masjid` | Admin | Ubah masjid |
+| `DELETE` | `/v1/admin/masjid/:id_masjid` | Admin | Hapus masjid |
+| `POST` | `/v1/admin/jadwal-sholat` | Admin | Tambah jadwal sholat |
+| `GET` | `/v1/admin/jadwal-sholat` | Admin | Daftar jadwal sholat |
+| `GET` | `/v1/admin/jadwal-sholat/:id_jadwal` | Admin | Detail jadwal sholat |
+| `PATCH` | `/v1/admin/jadwal-sholat/:id_jadwal` | Admin | Ubah jadwal sholat |
+| `DELETE` | `/v1/admin/jadwal-sholat/:id_jadwal` | Admin | Hapus jadwal sholat |
+| `POST` | `/v1/admin/mahasantri/:nim/reset-device` | Admin | Reset `device_id` agar bisa login dari perangkat baru |
+| `POST` | `/v1/presensi` | Mahasantri | Catat presensi geolokasi (Haversine, window time WIB, anti-fake GPS) |
+
+**Rencana (belum diimplementasikan):**
+
+| Method | Endpoint | Role | Tahap |
+|---|---|---|---|
+| `GET` | `/v1/presensi/hari-ini` | Mahasantri | 6 |
+| `GET` | `/v1/presensi/riwayat` | Mahasantri | 6 |
+| `POST` | `/v1/izin` | Mahasantri | 7 |
+| `GET` | `/v1/izin/saya` | Mahasantri | 7 |
+| `PATCH` | `/v1/musyrif/izin/:id/verify` | Musyrif | 7 |
+| `GET` | `/v1/musyrif/dss/santri-kritis` | Musyrif | 10 |
+| `GET` | `/v1/admin/activity-logs` | Admin | 11 |
+| `GET` | `/v1/admin/rekap` | Admin | 12 |
 
 > Lihat [`docs/API_CONTRACT.md`](./docs/API_CONTRACT.md) untuk dokumentasi lengkap.
 
@@ -307,17 +351,24 @@ Proyek ini menggunakan [Conventional Commits](https://www.conventionalcommits.or
 
 ## 📌 Status Proyek
 
-> **🚧 Dalam Pengembangan Aktif**
+> **🚧 Dalam Pengembangan Aktif** — rincian per tahap ada di [`docs/CODE_REVIEW.md`](./docs/CODE_REVIEW.md)
 
-| Tahap | Status |
-|---|---|
-| Backend contract & dokumentasi | ✅ Selesai |
-| Setup project (NestJS + Prisma + Auth) | ✅ Selesai |
-| Modul Presensi (Geofencing) | 🔄 In Progress |
-| Modul Izin | ⏳ Belum Dimulai |
-| Modul Musyrif (DSS/EWS) | ⏳ Belum Dimulai |
-| Modul Admin | ⏳ Belum Dimulai |
-| Testing & QA | ⏳ Belum Dimulai |
+| Modul / Tahap | Status | Keterangan |
+|---|---|---|
+| Setup dasar | ✅ Selesai | Config, Prisma, prefix `v1`, CORS, format response, validasi global, `.env.example`, Swagger `/docs` |
+| Auth, RBAC, device binding | ✅ Selesai | Login, JWT, bcrypt, `@Roles()`, guard global, throttler login, timing login disamakan |
+| Seed | ✅ Selesai | Admin, Musyrif, Mahasantri, Masjid, 5 Jadwal Sholat |
+| Master data Admin | ✅ Selesai | CRUD Masjid & Jadwal Sholat, reset device Mahasantri |
+| Modul Presensi (Geofencing) | ✅ Selesai | `POST /v1/presensi`: Haversine, window time jam server WIB, anti-fake GPS, cegah double presensi (P2002 → 409), 16 unit test |
+| Riwayat & ringkasan hari ini | ⏳ Belum Dimulai | Tahap 6 |
+| Modul Izin & lampiran | ⏳ Belum Dimulai | Tahap 7 |
+| Scheduled job `Tidak_Hadir` | ⏳ Belum Dimulai | Tahap 8 |
+| Monitoring Musyrif & grafik | ⏳ Belum Dimulai | Tahap 9 |
+| DSS & EWS | ⏳ Belum Dimulai | Tahap 10 |
+| Activity log | ⏳ Belum Dimulai | Tahap 11 |
+| Rekap Admin & grafik | ⏳ Belum Dimulai | Tahap 12 |
+| Testing & QA | ⏳ Belum Dimulai | Tahap 13 (konfigurasi Jest + e2e bawaan belum diganti) |
+| Docker aplikasi | 🟡 Sebagian | Baru service Postgres; Dockerfile & service `api` belum (tahap 14) |
 
 ---
 

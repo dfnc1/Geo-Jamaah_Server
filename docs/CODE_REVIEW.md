@@ -4,116 +4,144 @@ Legenda: ✅ selesai, 🟡 sebagian, ⬜ belum.
 
 ## Posisi Sekarang
 
-Seluruh tahap 1 sampai 3 selesai, termasuk 18 skenario tes manual auth (lulus semua). Lanjut ke tahap 4 (master data
-Admin).
+Tahap 1 sampai 5 selesai (setup dasar, auth/RBAC/device binding, seed, master data Admin, dan presensi geolokasi). P1 (env, Swagger, throttler) juga sudah beres. Berikutnya tahap 6 (Riwayat dan ringkasan hari ini). Sisa pekerjaan besar: riwayat, izin, scheduled job, DSS/EWS, activity log, rekap, testing, dan Docker aplikasi.
 
-## Urutan Pengerjaan
+## Status 14 Tahap Backend
 
-Tidak ada item tersisa. Tahap 4 (master data Admin) menunggu untuk dikerjakan.
+**1. Setup dasar** ✅
+- ✅ ConfigModule, PrismaModule, PrismaService
+- ✅ Prefix `v1`, CORS, path alias `@src/*` dan `@generated/*`
+- ✅ Format response sukses dan error
+- ✅ Validasi global (`ERR_VALIDATION`) dan filter error umum
+- ✅ Docker Compose PostgreSQL (volume sudah diperbaiki)
+- ✅ `.env.example`
+- ✅ Swagger (`/docs`, dikecualikan dari prefix `v1`)
 
----
+**2. Auth, RBAC, device binding** ✅
+- ✅ Login, JWT, bcrypt, profil per role
+- ✅ Device binding Mahasantri dan `ERR_DEVICE_ID_REQUIRED`
+- ✅ Cek `status_aktif` saat login dan di JwtStrategy
+- ✅ `@Roles()`, `RolesGuard`, `@Public()`, guard global
+- ✅ Tes manual auth (18 skenario)
+- ✅ Throttler login (5/menit/IP) dan global (100/menit)
+- ✅ Samakan waktu respons saat username tidak ada (hash palsu cost 12)
+- ✅ Reset device (dikerjakan di tahap 4)
 
-## 5. Tes Manual Auth
+**3. Seed** ✅
+- ✅ Admin, Musyrif, Mahasantri (termasuk satu nonaktif)
+- ✅ Masjid dan 5 Jadwal Shalat
+- ✅ Aman dijalankan berulang
 
-**Persiapan:**
+**4. Master data Admin** ✅
+- ✅ CRUD Masjid
+- ✅ CRUD Jadwal Shalat
+- ✅ Reset device Mahasantri
+- ✅ Validasi (koordinat, radius, format jam, window presensi)
+- ✅ Tes manual hak akses Admin (401 tanpa token, 403 Musyrif/Mahasantri, 400 validasi, 404 not found, 409 `ERR_IN_USE`, reset device lalu login perangkat baru)
 
-- Database dan seed sudah jalan, server aktif (`pnpm start:dev`)
-- Pakai Postman, Thunder Client, atau `curl`
-- Endpoint selain login belum ada. Untuk menguji 401 dan 403, buat **controller sementara** (jangan di-commit):
+**5. Presensi** ✅
+- ✅ Haversine, validasi radius (`src/presensi/haversine.ts`, fungsi murni)
+- ✅ Window time (jam server WIB, batas inklusif; `src/presensi/wib-time.ts`)
+- ✅ Cegah double presensi (tangkap P2002 dari `@@unique` → 409 `ERR_ALREADY_PRESENT`)
+- ✅ Anti-fake GPS (`is_mock_location` → 400, akurasi > 50 m → 400)
+- ✅ Unit test Haversine dan window time (16 test, `pnpm test`)
+- ✅ Tes manual 14 skenario (sukses, RBAC, validasi, 404, 409, mock, akurasi, luar radius, luar jam)
 
-```ts
+**6. Riwayat dan ringkasan hari ini** ⬜
+- ⬜ Ringkasan 5 shalat hari ini
+- ⬜ Riwayat kehadiran (pagination)
 
-@Controller('debug')
-export class DebugController {
-  @Get('semua-role')
-  semuaRole() {
-    return { ok: true };
-  }
+**7. Izin dan lampiran** ⬜
+- ⬜ Pengajuan dan daftar izin milik sendiri
+- ⬜ Verifikasi Musyrif (hanya santri binaan)
+- ⬜ State machine izin
+- ⬜ Upload lampiran ke MinIO
 
-  @Roles(Role.Musyrif)
-  @Get('musyrif')
-  musyrifSaja() {
-    return { ok: true };
-  }
-}
-```
+**8. Scheduled job `Tidak_Hadir`** ⬜
+- ⬜ Tandai santri yang tidak presensi setelah window berakhir
+- ⬜ Status `Izin` jika ada izin disetujui
+- ⬜ Hanya Mahasantri aktif
 
-Daftarkan di `AppModule`, hapus setelah tes selesai.
+**9. Monitoring Musyrif dan grafik** ⬜
+- ⬜ Monitoring presensi santri binaan
+- ⬜ Endpoint grafik tren kehadiran Musyrif
 
-**Skenario dan hasil yang diharapkan:**
+**10. DSS dan EWS** ⬜
+- ⬜ Rasio kehadiran dan streak alpha
+- ⬜ Endpoint santri kritis dan rekomendasi tindakan
 
-| No | Skenario                                                                                                                      | Hasil yang diharapkan                                                              |
-|----|-------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------|
-| 1  | Login Admin tanpa `device_id`                                                                                                 | 201, `profil: null`, ada `access_token`                                            |
-| 2  | Login Musyrif tanpa `device_id`                                                                                               | 201, profil berisi `id_musyrif`, `nama`, `no_telepon`                              |
-| 3  | Login Mahasantri dengan `device_id`                                                                                           | 201, profil berisi `nim`, `nama`, `kamar`, `status_aktif`, dan `musyrif` (ringkas) |
-| 4  | Login Mahasantri tanpa `device_id`                                                                                            | 400 `ERR_DEVICE_ID_REQUIRED`                                                       |
-| 5  | Login ulang Mahasantri yang sama, `device_id` sama                                                                            | 201                                                                                |
-| 6  | Login Mahasantri yang sama, `device_id` berbeda                                                                               | 401 `ERR_DEVICE_MISMATCH`                                                          |
-| 7  | Login Mahasantri lain memakai `device_id` milik santri pertama                                                                | 401 `ERR_DEVICE_MISMATCH`                                                          |
-| 8  | Password salah                                                                                                                | 401 `ERR_INVALID_CREDENTIALS`                                                      |
-| 9  | Username tidak ada                                                                                                            | 401 `ERR_INVALID_CREDENTIALS` (pesan sama dengan nomor 8)                          |
-| 10 | Login Mahasantri nonaktif                                                                                                     | 403 `ERR_ACCOUNT_INACTIVE`                                                         |
-| 11 | Body kosong `{}`                                                                                                              | 400 `ERR_VALIDATION`                                                               |
-| 12 | Response login tidak memuat `password` atau `device_id`                                                                       | Periksa body response                                                              |
-| 13 | `GET /v1/debug/semua-role` tanpa token                                                                                        | 401                                                                                |
-| 14 | Endpoint yang sama dengan token rusak atau diubah                                                                             | 401                                                                                |
-| 15 | `GET /v1/debug/musyrif` dengan token Musyrif                                                                                  | 200                                                                                |
-| 16 | `GET /v1/debug/musyrif` dengan token Mahasantri                                                                               | 403 `ERR_FORBIDDEN_ROLE`                                                           |
-| 17 | `GET /v1/debug/musyrif` dengan token Admin                                                                                    | 403 `ERR_FORBIDDEN_ROLE`                                                           |
-| 18 | Login Mahasantri aktif dan simpan token, ubah `status_aktif` jadi `false` di database, lalu panggil endpoint dengan token itu | 401 `ERR_ACCOUNT_INACTIVE`                                                         |
+**11. Activity log** ⬜
+- ⬜ Interceptor pencatat aktivitas
+- ⬜ Endpoint log untuk Admin (filter, pagination)
+- ⬜ Tidak ada password atau token di log
+- ⬜ Catat aksi master data dari tahap 4 (sudah ditandai `TODO(tahap-11)` di `src/admin/`): buat/ubah/hapus Masjid, buat/ubah/hapus JadwalSholat, dan reset device Mahasantri
 
-**Tambahan:**
+**12. Rekap Admin dan grafik** ⬜
+- ⬜ Rekap global
+- ⬜ Endpoint grafik tren kehadiran Admin
 
-- Cek format semua response sesuai contract (`success`, `statusCode`, `message`, `data` atau `error`)
-- Cek isi `.env` tidak muncul di `git status`
+**13. Testing** ⬜
+- ⬜ Konfigurasi Jest (`moduleNameMapper`), ganti e2e bawaan
+- ⬜ Unit test: Haversine, window time, EWS
+- ⬜ E2E: alur presensi dan izin
 
-**Selesai jika:** semua baris di atas sesuai. Catat hasilnya (lulus atau gagal beserta response aslinya) supaya bisa
-dijadikan bukti di laporan.
+**14. Docker aplikasi** ⬜
+- ⬜ Dockerfile dan service `api` di Compose
+- ⬜ Service MinIO (jika belum)
 
-**Setelah itu:**
+## Urutan Pengerjaan Berikutnya
 
-1. Hapus `DebugController`
-2. Commit semua yang belum ter-commit
-3. Perbarui checklist di bawah
-4. Mulai tahap 4 (master data Admin)
+1. Tahap 6 riwayat dan ringkasan
+2. Tahap 7 izin dan lampiran
+3. Tahap 8 scheduled job
+4. Tahap 10 DSS dan EWS (sebelum 9, karena fitur unggulan project)
+5. Tahap 9 monitoring dan grafik Musyrif
+6. Tahap 11 activity log (wajib untuk laporan, ketentuan audit trail)
+7. Tahap 12 rekap dan grafik Admin
+8. Tahap 13 testing (unit test inti sudah dimulai di tahap 5)
+9. Tahap 14 Docker aplikasi
 
----
+Jika waktu terbatas, potong dari bawah. Yang wajib: tahap 6, 7, 8, 10, 11. Tahap 9 dan 12 cukup satu endpoint grafik per role. Tahap 13 cukup unit test inti. Tahap 14 paling akhir.
+
+Sebelum tahap 13, bereskan backlog P2 no. 10 (sisa mengganti e2e bawaan).
+
+## Backlog P1 — Semua Selesai
+
+| No | Item | Status | Catatan |
+|---|---|---|---|
+| 6 | `.env.example`, sinkronkan `JWT_EXPIRES_IN` dan `CORS_ORIGIN` | ✅ | `JWT_EXPIRES_IN` dibaca lewat `ConfigService` (default `7d`). `CORS_ORIGIN` kosong → origin `'*'` tanpa `credentials` (auth memakai header Bearer); diisi → daftar origin dengan `credentials: true` |
+| 7 | Swagger | ✅ | `@nestjs/swagger` + plugin di `nest-cli.json`. `/docs` dan `/docs-json` dikecualikan dari prefix `v1` |
+| 8 | Throttler login dan timing username tidak ada | ✅ | Global 100/menit; login 5/menit/IP via `@Throttle`. 429 dipetakan ke `ERR_TOO_MANY_REQUESTS` di `HttpExceptionFilter`. Username tidak ada tetap dijalankan `bcrypt.compare` ke hash palsu (cost 12) |
+
+## Backlog P2 (sambil jalan)
+
+| No | Item | Status | Catatan |
+|---|---|---|---|
+| 9 | Endpoint reset `device_id` | ✅ | Selesai di tahap 4, khusus Admin. Hak akses Musyrif untuk santri binaannya masih dipertimbangkan |
+| 10 | Konfigurasi Jest dan ganti e2e bawaan | 🟡 | Unit test jalan (22 test: tahap 5 + guard auth). `moduleNameMapper` untuk `@src/*` dan `@generated/*` ditambahkan di `package.json`. Sisa: ganti/stub file e2e bawaan (`test/`) sebelum tahap 13 |
+| 11 | Sinkronkan dokumen | ✅ | `API_CONTRACT.md`, `DATABASE_SCHEMA.md`, `README.md`, `FRONTEND_GUIDE.md` sudah disinkronkan dengan kode |
+| 12 | Pertimbangkan hapus `--fix` dari script `lint` | ⬜ | `--fix` mengubah file saat lint dijalankan |
+
+## Dokumen yang Sudah Disinkronkan
+
+| File | Status |
+|---|---|
+| `API_CONTRACT.md` | ✅ Login lengkap (`ERR_ACCOUNT_INACTIVE`, `ERR_DEVICE_ID_REQUIRED`, `ERR_TOO_MANY_REQUESTS`, `device_id` wajib hanya untuk Mahasantri) dan 11 endpoint Admin. Endpoint rencana ditandai |
+| `DATABASE_SCHEMA.md` | ✅ Bagian Prisma schema disalin ulang dari `prisma/schema.prisma`; daftar index dan foreign key diperbarui |
+| `README.md` | ✅ Status modul sesuai kenyataan, `src/common/` dan `src/admin/` di struktur folder, bagian Swagger, variabel `.env`, Node 24+ |
+| `FRONTEND_GUIDE.md` | ✅ Dibuat berisi tabel status endpoint (Siap / Rencana). Perbarui tiap ada endpoint baru |
+| `BUSINESS_RULES.md` | ✅ Sudah sesuai |
 
 ## Checklist
 
-- [x] 1 Volume Postgres diperbaiki dan diverifikasi
-- [x] 2 Seed jalan dua kali tanpa error, semua akun bisa login
-- [x] 3 Guard global, `@Public()`, `ERR_FORBIDDEN_ROLE`, file di-rename
-- [x] 4 `ERR_VALIDATION`, tanpa `forbidNonWhitelisted`, filter error umum
-- [x] 5 Delapan belas skenario tes manual lulus
-- [x] Controller debug sudah dihapus
-- [x] Semua perubahan ter-commit dengan pesan Conventional Commits
-
-## Hasil Tes Manual (17 Okt 2026)
-
-Semua 18 skenario lulus:
-
-| No | Skenario | Hasil |
-|----|----------|-------|
-| 1 | Login Admin tanpa `device_id` | ✅ 201, `profil: null` |
-| 2 | Login Musyrif | ✅ 201, profil lengkap |
-| 3 | Login Mahasantri + `device_id` | ✅ 201, profil + musyrif |
-| 4 | Mahasantri tanpa `device_id` | ✅ 400 `ERR_DEVICE_ID_REQUIRED` |
-| 5 | Login ulang `device_id` sama | ✅ 201 |
-| 6 | `device_id` berbeda | ✅ 401 `ERR_DEVICE_MISMATCH` |
-| 7 | Santri lain pakai `device_id` terpakai | ✅ 401 `ERR_DEVICE_MISMATCH` |
-| 8 | Password salah | ✅ 401 `ERR_INVALID_CREDENTIALS` |
-| 9 | Username tidak ada | ✅ 401 `ERR_INVALID_CREDENTIALS` |
-| 10 | Mahasantri nonaktif | ✅ 403 `ERR_ACCOUNT_INACTIVE` |
-| 11 | Body kosong `{}` | ✅ 400 `ERR_VALIDATION` |
-| 12 | Response tanpa `password`/`device_id` | ✅ Bersih |
-| 13 | Endpoint tanpa token | ✅ 401 |
-| 14 | Token rusak | ✅ 401 |
-| 15 | Token Musyrif → endpoint Musyrif | ✅ 200 |
-| 16 | Token Mahasantri → endpoint Musyrif | ✅ 403 `ERR_FORBIDDEN_ROLE` |
-| 17 | Token Admin → endpoint Musyrif | ✅ 403 `ERR_FORBIDDEN_ROLE` |
-| 18 | Token hidup, akun dinonaktifkan | ✅ 401 `ERR_ACCOUNT_INACTIVE` |
-
-Seed terverifikasi idempoten (dua kali run, jumlah baris tidak bertambah). Logger terverifikasi muncul di terminal
-(login gagal, device mismatch, P2002, DB connect, bootstrap error).
+- [x] Volume Postgres
+- [x] Seed
+- [x] RBAC global dan `@Public()`
+- [x] `main.ts`: pipe dan filter
+- [x] Tes manual auth
+- [x] `.env.example` dan sinkron env
+- [x] Swagger
+- [x] Throttler dan timing login
+- [x] Sinkron dokumen
+- [x] Tahap 4 master data Admin
+- [x] Tahap 5 presensi (Haversine, window time, anti-fake GPS; 16 unit test + 14 tes manual)

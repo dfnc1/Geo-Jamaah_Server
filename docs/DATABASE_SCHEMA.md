@@ -100,11 +100,38 @@ erDiagram
 | 7 | izin | Transaksi |
 | 8 | activity_logs | Audit Trail |
 
-## Constraint Penting
-- `Presensi`: unique `(nim, id_jadwal, tanggal)` untuk mencegah double presensi.
-- `Pengguna.username` dan `Pengguna.device_id` unique.
-- `activity_logs`: index `(role, created_at)` dan `(username)` untuk laporan audit.
-- Hapus `Pengguna` ikut menghapus profil `Mahasantri` / `Musyrif` (cascade).
+## Unique Constraint
+| Tabel | Kolom | Keterangan |
+|---|---|---|
+| pengguna | `username` | Nama akun unik |
+| pengguna | `device_id` | Satu perangkat terikat ke satu akun (banyak `null` diizinkan) |
+| mahasantri | `nim` | Primary key |
+| presensi | `(nim, id_jadwal, tanggal)` | Proteksi double presensi (BR-03) |
+
+## Index
+| Tabel | Kolom | Kegunaan |
+|---|---|---|
+| mahasantri | `id_musyrif` | Cari santri binaan seorang Musyrif |
+| presensi | `(nim, tanggal)` | Riwayat presensi seorang santri |
+| presensi | `(id_jadwal, tanggal)` | Monitoring presensi per jadwal |
+| izin | `nim` | Daftar izin milik seorang santri |
+| izin | `(id_musyrif, status_persetujuan)` | Antrian verifikasi Musyrif |
+| activity_logs | `(role, created_at)` | Laporan audit per role |
+| activity_logs | `username` | Laporan audit per akun |
+
+## Foreign Key
+| Tabel | Kolom | Merujuk | onDelete |
+|---|---|---|---|
+| musyrif | `id_pengguna` | pengguna.id_pengguna | **Cascade** |
+| mahasantri | `id_pengguna` | pengguna.id_pengguna | **Cascade** |
+| mahasantri | `id_musyrif` | musyrif.id_musyrif | Restrict (default) |
+| presensi | `nim` | mahasantri.nim | Restrict (default) |
+| presensi | `id_jadwal` | jadwal_sholat.id_jadwal | Restrict (default) |
+| presensi | `id_masjid` | masjid.id_masjid | Restrict (default) |
+| izin | `nim` | mahasantri.nim | Restrict (default) |
+| izin | `id_musyrif` | musyrif.id_musyrif | Restrict (default) |
+
+Hapus `Pengguna` ikut menghapus profil `Mahasantri` / `Musyrif` (cascade). Kolom lain memakai `Restrict`, sehingga `Masjid` / `JadwalSholat` yang masih dipakai `presensi` tidak bisa dihapus — di API diterjemahkan menjadi 409 `ERR_IN_USE`.
 
 ## Enum
 | Enum | Nilai |
@@ -114,18 +141,27 @@ erDiagram
 | JenisIzin | Sakit, Pulang, Tugas_Kampus |
 | StatusPersetujuan | Pending, Disetujui, Ditolak |
 
+## Catatan Dukung Driver Adapter
+Schema di bawah ini memang tidak punya `url` di blok `datasource`. Koneksi dijalankan lewat Prisma Driver Adapter (`@prisma/adapter-pg` + `pg`), dan `DATABASE_URL` dibaca dari env lewat `src/prisma/prisma.service.ts`. Client di-generate ke `generated/prisma`.
+
 ## Prisma Schema
 
-Salin ke `prisma/schema.prisma`.
+Salinan persis dari [`prisma/schema.prisma`](../prisma/schema.prisma).
 
 ```prisma
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
 generator client {
-  provider = "prisma-client-js"
+  provider     = "prisma-client"
+  output       = "../generated/prisma"
+  moduleFormat = "cjs"
 }
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 enum Role {
@@ -156,7 +192,7 @@ enum StatusPersetujuan {
 model Pengguna {
   id_pengguna String      @id @default(uuid())
   username    String      @unique
-  password    String      // hash bcrypt
+  password    String // hash bcrypt
   role        Role
   device_id   String?     @unique
   mahasantri  Mahasantri?
@@ -189,13 +225,14 @@ model Mahasantri {
   presensi     Presensi[]
   izin         Izin[]
 
+  @@index([id_musyrif])
   @@map("mahasantri")
 }
 
 model JadwalSholat {
   id_jadwal            String     @id @default(uuid())
-  nama_sholat          String     // Subuh, Dzuhur, Ashar, Maghrib, Isya
-  waktu_azan           String     // "HH:mm" (WIB)
+  nama_sholat          String // Subuh, Dzuhur, Ashar, Maghrib, Isya
+  waktu_azan           String // "HH:mm" (WIB)
   waktu_iqamah         String
   waktu_mulai_presensi String
   waktu_akhir_presensi String
@@ -209,7 +246,7 @@ model Masjid {
   nama_masjid      String
   latitude         Float
   longitude        Float
-  radius_toleransi Float      // meter
+  radius_toleransi Float // meter
   presensi         Presensi[]
 
   @@map("masjid")
@@ -236,7 +273,7 @@ model Presensi {
 
   @@unique([nim, id_jadwal, tanggal])
   @@index([nim, tanggal])
-
+  @@index([id_jadwal, tanggal])
   @@map("presensi")
 }
 
@@ -247,14 +284,14 @@ model Izin {
   jenis_izin         JenisIzin
   tanggal_izin       DateTime
   alasan             String
-  bukti_lampiran     String?           // object key di MinIO
+  bukti_lampiran     String? // object key di MinIO
   status_persetujuan StatusPersetujuan @default(Pending)
 
   mahasantri Mahasantri @relation(fields: [nim], references: [nim])
   musyrif    Musyrif    @relation(fields: [id_musyrif], references: [id_musyrif])
 
+  @@index([nim])
   @@index([id_musyrif, status_persetujuan])
-
   @@map("izin")
 }
 

@@ -1,6 +1,8 @@
 # API Contract - Geo-Jamaah_Server
 
-Base path: `/v1`. Dokumentasi Swagger: `/docs`.
+Base path: `/v1`. Dokumentasi Swagger interaktif: `/docs` (dan `/docs-json` untuk spek OpenAPI mentah). Kedua path ini dikecualikan dari prefix global, jadi tidak menjadi `/v1/docs`.
+
+Status: ✅ = sudah ada di kode dan teruji, 📋 = rencana (belum diimplementasikan).
 
 ## Format Response
 
@@ -13,36 +15,186 @@ Error:
 { "success": false, "statusCode": 400, "message": "...", "error": "ERR_CODE" }
 ```
 
-## 1. POST /v1/auth/login
-- Akses: Public
-- Body: `{ "username": string, "password": string, "device_id": string }`
-- 201: `{ "token_type": "Bearer", "access_token": string, "user": { id_pengguna, username, role, profil } }`
-- Error: 401 `ERR_INVALID_CREDENTIALS`, 401 `ERR_DEVICE_MISMATCH`
+### Kode Error Umum
+| Kode | HTTP | Kapan |
+|---|---|---|
+| `ERR_VALIDATION` | 400 | Body gagal validasi (`whitelist` aktif: field tak dikenal dibuang) |
+| `ERR_UNAUTHORIZED` | 401 | Token tidak ada, tidak sah, atau kedaluwarsa |
+| `ERR_FORBIDDEN_ROLE` | 403 | Token sah tetapi role tidak diizinkan `@Roles()` |
+| `ERR_TOO_MANY_REQUESTS` | 429 | Melewati batas rate limit |
+| `ERR_INTERNAL` | 500 | Error tak terduga di server |
 
-## 2. POST /v1/presensi
-- Akses: Mahasantri
+### Autentikasi
+Kirim token di header: `Authorization: Bearer <access_token>`.
+
+### Rate Limit
+- Global: 100 request per 60 detik per IP.
+- Login: 5 percobaan per 60 detik per IP (lebih ketat).
+
+---
+
+# Endpoint yang Sudah Diimplementasikan
+
+## 1. ✅ POST /v1/auth/login
+- Akses: Public (`@Public()`, tetap kena rate limit)
+- Body:
+  ```json
+  { "username": "ahmad_fauzi", "password": "rahasia123", "device_id": "dev-a1b2c3" }
+  ```
+  - `username`, `password`: wajib (maks 100 karakter).
+  - `device_id`: **wajib hanya untuk role Mahasantri**, diabaikan untuk Musyrif dan Admin. Bersifat opsional di schema, tapi di-level service akan ditolak untuk Mahasantri yang belum mengirimnya.
+- 201:
+  ```json
+  {
+    "success": true, "statusCode": 201, "message": "Login berhasil",
+    "data": {
+      "token_type": "Bearer",
+      "access_token": "eyJhbGciOiJIUzI1NiIs...",
+      "user": {
+        "id_pengguna": "uuid-pengguna",
+        "username": "ahmad_fauzi",
+        "role": "Mahasantri",
+        "profil": {
+          "nim": "24050505050", "nama": "Ahmad Fauzi", "kamar": "A-12",
+          "status_aktif": true, "musyrif": { "id_musyrif": "uuid-musyrif", "nama": "Ustadz Abdul Rahman" }
+        }
+      }
+    }
+  }
+  ```
+- Bentuk `user.profil` tergantung role: `Mahasantri` (role Mahasantri), `Musyrif` (role Musyrif), atau `null` (role Admin).
+- Device binding hanya untuk Mahasantri: `device_id` pertama yang berhasil login disimpan ke akun. Percobaan login dari perangkat lain pada akun yang sudah terikat ditolak `ERR_DEVICE_MISMATCH`.
+- Error:
+  - 400 `ERR_VALIDATION` — body tidak lolos validasi
+  - 400 `ERR_DEVICE_ID_REQUIRED` — role Mahasantri tanpa `device_id`
+  - 401 `ERR_INVALID_CREDENTIALS` — username tidak ada atau password salah (waktu respons sengaja disamakan lewat hash bcrypt palsu)
+  - 401 `ERR_DEVICE_MISMATCH` — akun/perangkat sudah terikat ke perangkat atau akun lain
+  - 403 `ERR_ACCOUNT_INACTIVE` — Mahasantri dengan `status_aktif = false`
+  - 429 `ERR_TOO_MANY_REQUESTS` — lebih dari 5 percobaan per menit per IP
+
+---
+
+## 2. ✅ POST /v1/admin/masjid
+- Akses: Admin
+- Body:
+  ```json
+  { "nama_masjid": "Masjid Al-Ikhlas", "latitude": -7.9666, "longitude": 112.6326, "radius_toleransi": 100 }
+  ```
+- Validasi: `nama_masjid` wajib (maks 150, tidak boleh hanya spasi), `latitude` -90..90, `longitude` -180..180, `radius_toleransi` > 0 (meter).
+- 201: `data` = `{ id_masjid, nama_masjid, latitude, longitude, radius_toleransi }`
+- Error: 400 `ERR_VALIDATION`, 401, 403
+
+## 3. ✅ GET /v1/admin/masjid
+- Akses: Admin
+- 200: `data` = array masjid, diurutkan berdasarkan nama.
+
+## 4. ✅ GET /v1/admin/masjid/:id_masjid
+- Akses: Admin
+- 200: `data` = satu masjid.
+- Error: 404 `ERR_MASJID_NOT_FOUND`
+
+## 5. ✅ PATCH /v1/admin/masjid/:id_masjid
+- Akses: Admin
+- Body: semua field opsional (PATCH). Field yang tidak dikirim tetap seperti semula. Nilai `null` ditolak.
+- 200: `data` = masjid terbaru.
+- Error: 400 `ERR_VALIDATION`, 404 `ERR_MASJID_NOT_FOUND`
+
+## 6. ✅ DELETE /v1/admin/masjid/:id_masjid
+- Akses: Admin. Hard delete.
+- 200: `data` = `{ "id_masjid": "uuid" }`
+- Error:
+  - 404 `ERR_MASJID_NOT_FOUND`
+  - 409 `ERR_IN_USE` — masih dipakai oleh data presensi
+
+---
+
+## 7. ✅ POST /v1/admin/jadwal-sholat
+- Akses: Admin
+- Body:
+  ```json
+  {
+    "nama_sholat": "Subuh", "waktu_azan": "04:30", "waktu_iqamah": "04:45",
+    "waktu_mulai_presensi": "04:15", "waktu_akhir_presensi": "05:10"
+  }
+  ```
+- Validasi: `nama_sholat` wajib (maks 50, tidak boleh hanya spasi). Semua waktu wajib berformat `HH:mm` (24 jam). `waktu_mulai_presensi` < `waktu_akhir_presensi`.
+- 201: `data` = `{ id_jadwal, nama_sholat, waktu_azan, waktu_iqamah, waktu_mulai_presensi, waktu_akhir_presensi }`
+- Error: 400 `ERR_VALIDATION`, 401, 403
+
+## 8. ✅ GET /v1/admin/jadwal-sholat
+- Akses: Admin
+- 200: `data` = array jadwal, diurutkan berdasarkan jam azan.
+
+## 9. ✅ GET /v1/admin/jadwal-sholat/:id_jadwal
+- Akses: Admin
+- 200: `data` = satu jadwal.
+- Error: 404 `ERR_JADWAL_NOT_FOUND`
+
+## 10. ✅ PATCH /v1/admin/jadwal-sholat/:id_jadwal
+- Akses: Admin
+- Body: semua field opsional (PATCH). Field yang tidak dikirim memakai nilai tersimpan.
+- Aturan window presensi (`mulai` < `akhir`) dievaluasi terhadap nilai **gabungan** dengan data tersimpan, sehingga mengirim salah satu field saja tetap diperiksa dengan benar.
+- 200: `data` = jadwal terbaru.
+- Error: 400 `ERR_VALIDATION`, 404 `ERR_JADWAL_NOT_FOUND`
+
+## 11. ✅ DELETE /v1/admin/jadwal-sholat/:id_jadwal
+- Akses: Admin. Hard delete.
+- 200: `data` = `{ "id_jadwal": "uuid" }`
+- Error:
+  - 404 `ERR_JADWAL_NOT_FOUND`
+  - 409 `ERR_IN_USE` — masih dipakai oleh data presensi
+
+---
+
+## 12. ✅ POST /v1/admin/mahasantri/:nim/reset-device
+- Akses: Admin (BR-09; hak akses Musyrif untuk santri binaannya masih dipertimbangkan di backlog)
+- Param: `nim` (NIM Mahasantri)
+- Efek: `device_id` pengguna milik Mahasantri tersebut di-set `null`, sehingga akun bisa diikat ulang ke perangkat baru. Idempoten: mengulang reset pada akun yang belum terikat tetap berhasil.
+- 200:
+  ```json
+  {
+    "success": true, "statusCode": 200, "message": "Device ID berhasil direset",
+    "data": { "nim": "24050505050", "nama": "Ahmad Fauzi", "username": "mahasantri1", "device_id": null }
+  }
+  ```
+- Setelah reset, login berikutnya dari perangkat baru mengikat `device_id` baru.
+- Error: 401, 403, 404 `ERR_MAHASANTRI_NOT_FOUND`
+
+---
+
+## ✅ POST /v1/presensi
+- Akses: Mahasantri (`@Roles(Role.Mahasantri)`). `nim` diambil dari token (klaim `sub` → profil Mahasantri), bukan dari body.
 - Body:
   ```json
   {
     "id_jadwal": "uuid",
     "id_masjid": "uuid",
-    "latitude_user": -7.9666,
+    "latitude_user": -7.9671,
     "longitude_user": 112.6326,
     "akurasi_meter": 12.5,
     "is_mock_location": false
   }
   ```
-- Validasi: latitude -90..90, longitude -180..180, akurasi_meter >= 0.
-- 201: `{ "status_presensi": "Hadir", "jarak_meter": 23.4 }`
-- Error:
-  - 400 `ERR_GEOFENCE_RADIUS_EXCEEDED`
-  - 400 `ERR_TIME_WINDOW_INVALID`
-  - 400 `ERR_MOCK_LOCATION`
-  - 400 `ERR_GPS_ACCURACY_LOW`
-  - 404 `ERR_JADWAL_NOT_FOUND` / `ERR_MASJID_NOT_FOUND`
-  - 409 `ERR_ALREADY_PRESENT`
+- Validasi body: `latitude_user` -90..90, `longitude_user` -180..180, `akurasi_meter` **wajib** angka ≥ 0, `is_mock_location` **wajib** boolean, `id_jadwal`/`id_masjid` wajib UUID.
+- Urutan validasi bisnis di server:
+  1. `is_mock_location = true` → 400 `ERR_MOCK_LOCATION`
+  2. `akurasi_meter` > 50 → 400 `ERR_GPS_ACCURACY_LOW` (tepat 50 masih diterima)
+  3. jadwal/masjid tidak ada → 404 `ERR_JADWAL_NOT_FOUND` / `ERR_MASJID_NOT_FOUND`
+  4. jam server WIB di luar window → 400 `ERR_TIME_WINDOW_INVALID`. **Batas inklusif**: tepat di `waktu_mulai_presensi` dan tepat di `waktu_akhir_presensi` diterima. Jam yang dipakai selalu jam server (zona Asia/Jakarta), bukan jam HP.
+  5. jarak Haversine user ↔ masjid > `radius_toleransi` → 400 `ERR_GEOFENCE_RADIUS_EXCEEDED` (jarak tepat sama dengan radius diterima)
+  6. disimpan dengan status `Hadir`; presensi ganda per jadwal per hari ditolak 409 `ERR_ALREADY_PRESENT` (unique constraint `@@unique([nim, id_jadwal, tanggal])`, aman terhadap race condition)
+- `tanggal` dihitung dari tanggal WIB saat ini.
+- 201: `{ "status_presensi": "Hadir", "jarak_meter": 55.6 }`
+  - `jarak_meter` = jarak Haversine dalam meter, dibulatkan 2 desimal (hanya untuk response; tidak disimpan ke database).
+- Error: 400 (`ERR_VALIDATION`, `ERR_MOCK_LOCATION`, `ERR_GPS_ACCURACY_LOW`, `ERR_TIME_WINDOW_INVALID`, `ERR_GEOFENCE_RADIUS_EXCEEDED`), 401, 403, 404 (`ERR_JADWAL_NOT_FOUND` / `ERR_MASJID_NOT_FOUND` / `ERR_MAHASANTRI_NOT_FOUND`), 409 `ERR_ALREADY_PRESENT`
 
-## 3. POST /v1/izin
+---
+
+# Endpoint Rencana (📋 Belum Diimplementasikan)
+
+Daftar fitur dari PRD yang belum punya kode. Jangan dipanggil frontend sebelum kode ada. Perlu diputuskan detailnya sebelum tahap terkait dikerjakan.
+
+## 📋 POST /v1/izin
 - Akses: Mahasantri
 - Body:
   ```json
@@ -56,13 +208,13 @@ Error:
 - 201: pengajuan izin dikirim ke musyrif, status `Pending`.
 - Error: 400 validasi, 401, 403
 
-## 4. PATCH /v1/musyrif/izin/:id_izin/verify
+## 📋 PATCH /v1/musyrif/izin/:id_izin/verify
 - Akses: Musyrif (pembina dari mahasantri pengaju)
 - Body: `{ "status_persetujuan": "Disetujui | Ditolak" }`
 - 200: status izin diperbarui.
 - Error: 403 `ERR_NOT_YOUR_STUDENT`, 404 `ERR_IZIN_NOT_FOUND`, 409 `ERR_IZIN_ALREADY_DECIDED`
 
-## 5. GET /v1/musyrif/dss/santri-kritis
+## 📋 GET /v1/musyrif/dss/santri-kritis
 - Akses: Musyrif
 - 200:
   ```json
@@ -78,7 +230,7 @@ Error:
   ]
   ```
 
-## 6. GET /v1/admin/activity-logs
+## 📋 GET /v1/admin/activity-logs
 - Akses: Admin
 - Query: `role` (opsional), `username` (opsional), `modul` (opsional), `from`, `to` (opsional, ISO date), `page`, `limit`
 - 200: daftar log terbaru dulu
@@ -87,12 +239,11 @@ Error:
   ```
 - Error: 401, 403
 
-## Endpoint Tambahan yang Dibutuhkan (belum ada di diskusi)
-Fitur di PRD yang belum punya endpoint. Perlu diputuskan sebelum coding:
+## 📋 Endpoint Rencana Lainnya
 - `GET /v1/presensi/hari-ini` (ringkasan 5 shalat hari ini, Mahasantri)
 - `GET /v1/presensi/riwayat` (riwayat kehadiran, Mahasantri)
 - `GET /v1/musyrif/presensi/monitoring` (dashboard real-time Musyrif)
 - `GET /v1/izin/saya` dan `GET /v1/musyrif/izin?status=Pending`
 - `POST /v1/izin/lampiran` (upload ke MinIO, mengembalikan object key)
-- `CRUD /v1/admin/masjid` dan `CRUD /v1/admin/jadwal-sholat`
 - `GET /v1/admin/rekap` (rekapitulasi global)
+- `GET /v1/admin/mahasantri`, `GET/PATCH/DELETE /v1/admin/mahasantri/:nim` (CRUD lengkap Mahasantri; sekarang hanya endpoint reset-device)
