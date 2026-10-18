@@ -5,10 +5,12 @@ import { AdminModule } from './admin/admin.module';
 import { PresensiModule } from './presensi/presensi.module';
 import { IzinModule } from './izin/izin.module';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { JwtAuthGuard } from '@src/auth/guard/jwt-auth.guard';
 import { RolesGuard } from '@src/auth/guard/roles.guard';
 import { APP_GUARD } from '@nestjs/core';
+import { JobsModule } from './jobs/jobs.module';
 
 @Module({
   imports: [
@@ -26,10 +28,13 @@ import { APP_GUARD } from '@nestjs/core';
       ],
     }),
     PrismaModule,
+    // Scheduler untuk job BR-05 (tandai Tidak_Hadir/Izin).
+    ScheduleModule.forRoot(),
     AuthModule,
     AdminModule,
     PresensiModule,
     IzinModule,
+    JobsModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
