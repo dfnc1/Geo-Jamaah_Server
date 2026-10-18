@@ -291,6 +291,7 @@ Base path: `/v1` | Swagger UI: `/docs`
 | `GET` | `/v1/musyrif/izin?status=` | Musyrif | Daftar izin santri binaan (+ `nama_mahasantri`) |
 | `PATCH` | `/v1/musyrif/izin/:id_izin/verify` | Musyrif | Verifikasi Disetujui/Ditolak (state machine anti-race) |
 | `POST` | `/v1/admin/jobs/tandai-tidak-hadir` | Admin | Pemicu manual job Tidak_Hadir/Izin (BR-05; cron juga jalan otomatis) |
+| `GET` | `/v1/musyrif/dss/santri-kritis` | Musyrif | Daftar santri kritis: rasio < 75% atau streak alpha ≥ 3 (BR-08) |
 
 **Rencana (belum diimplementasikan):**
 
@@ -299,7 +300,6 @@ Base path: `/v1` | Swagger UI: `/docs`
 | `GET` | `/v1/presensi/hari-ini` | Mahasantri | 6 |
 | `GET` | `/v1/presensi/riwayat` | Mahasantri | 6 |
 | `POST` | `/v1/izin/lampiran` | Mahasantri | 7 (upload MinIO) |
-| `GET` | `/v1/musyrif/dss/santri-kritis` | Musyrif | 10 |
 | `GET` | `/v1/admin/activity-logs` | Admin | 11 |
 | `GET` | `/v1/admin/rekap` | Admin | 12 |
 
@@ -364,10 +364,10 @@ Proyek ini menggunakan [Conventional Commits](https://www.conventionalcommits.or
 | Master data Admin | ✅ Selesai | CRUD Masjid & Jadwal Sholat, reset device Mahasantri |
 | Modul Presensi (Geofencing) | ✅ Selesai | `POST /v1/presensi`: Haversine, window time jam server WIB, anti-fake GPS, cegah double presensi (P2002 → 409), 16 unit test |
 | Riwayat & ringkasan hari ini | ⏳ Belum Dimulai | Tahap 6 |
-| Modul Izin & lampiran | 🟡 Sebagian | Tahap 7: izin selesai (ajukan, daftar, filter, verifikasi Musyrif pembina dengan state machine aman race; 24 unit test). Upload lampiran MinIO menyusul |
+| Modul Izin & lampiran | 🟡 Sebagian | Tahap 7: izin selesai (ajukan, daftar, filter, verifikasi Musyrif pembina dengan state machine aman race + konversi `Tidak_Hadir` → `Izin` atomik saat Disetujui; 27 unit test). Upload lampiran MinIO menyusul |
 | Scheduled job `Tidak_Hadir` | ✅ Selesai | Cron `@nestjs/schedule` tiap menit (Asia/Jakarta) + pemicu manual Admin; izin Disetujui → status `Izin`; idempoten (skipDuplicates, Hadir tidak ditimpa); baris otomatis: masjid utama + koordinat 0,0; 21 unit test |
 | Monitoring Musyrif & grafik | ⏳ Belum Dimulai | Tahap 9 |
-| DSS & EWS | ⏳ Belum Dimulai | Tahap 10 |
+| DSS & EWS | ✅ Selesai | Tahap 10: `GET /v1/musyrif/dss/santri-kritis` (rasio = Hadir+Manual / (baris presensi periode − Izin), streak alpha; 29 unit test) |
 | Activity log | ⏳ Belum Dimulai | Tahap 11 |
 | Rekap Admin & grafik | ⏳ Belum Dimulai | Tahap 12 |
 | Testing & QA | ⏳ Belum Dimulai | Tahap 13 (konfigurasi Jest + e2e bawaan belum diganti) |

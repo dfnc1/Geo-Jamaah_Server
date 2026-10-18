@@ -4,7 +4,7 @@ Legenda: ✅ selesai, 🟡 sebagian, ⬜ belum.
 
 ## Posisi Sekarang
 
-Tahap 1 sampai 5, tahap 7 (izin, tanpa upload lampiran), dan tahap 8 (scheduled job `Tidak_Hadir`) selesai (setup dasar, auth/RBAC/device binding, seed, master data Admin, presensi geolokasi, pengajuan/daftar/verifikasi izin dengan state machine, serta job penandaan absen otomatis + pemicu manual). P1 (env, Swagger, throttler) juga sudah beres. Berikutnya tahap 6 (Riwayat dan ringkasan hari ini). Sisa pekerjaan besar: riwayat, lampiran izin (MinIO), DSS/EWS, activity log, rekap, testing, dan Docker aplikasi.
+Tahap 1 sampai 5, tahap 7 (izin, tanpa upload lampiran), tahap 8 (scheduled job `Tidak_Hadir`), dan tahap 10 (DSS & EWS) selesai (setup dasar, auth/RBAC/device binding, seed, master data Admin, presensi geolokasi, pengajuan/daftar/verifikasi izin dengan state machine, job penandaan absen otomatis + pemicu manual, serta endpoint santri kritis dengan rasio/streak EWS). P1 (env, Swagger, throttler) juga sudah beres. Berikutnya tahap 6 (Riwayat dan ringkasan hari ini). Sisa pekerjaan besar: riwayat, lampiran izin (MinIO), monitoring/grafik, activity log, rekap, testing, dan Docker aplikasi.
 
 ## Status 14 Tahap Backend
 
@@ -23,7 +23,7 @@ Tahap 1 sampai 5, tahap 7 (izin, tanpa upload lampiran), dan tahap 8 (scheduled 
 - ✅ Cek `status_aktif` saat login dan di JwtStrategy
 - ✅ `@Roles()`, `RolesGuard`, `@Public()`, guard global
 - ✅ Tes manual auth (18 skenario)
-- ✅ Throttler login (5/menit/IP) dan global (100/menit)
+- ✅ Throttler login (env `THROTTLE_LOGIN_LIMIT`, default 20/menit/IP) dan global (env `THROTTLE_GLOBAL_LIMIT`, default 600/menit)
 - ✅ Samakan waktu respons saat username tidak ada (hash palsu cost 12)
 - ✅ Reset device (dikerjakan di tahap 4)
 
@@ -72,9 +72,13 @@ Tahap 1 sampai 5, tahap 7 (izin, tanpa upload lampiran), dan tahap 8 (scheduled 
 - ⬜ Monitoring presensi santri binaan
 - ⬜ Endpoint grafik tren kehadiran Musyrif
 
-**10. DSS dan EWS** ⬜
-- ⬜ Rasio kehadiran dan streak alpha
-- ⬜ Endpoint santri kritis dan rekomendasi tindakan
+**10. DSS dan EWS** ✅
+- ✅ Fungsi murni `src/dss/ews.ts`: rasio = (`Hadir`+`Manual`) / (baris presensi tercatat dalam periode − `Izin`) ×100 dibulatkan 1 desimal; `< 75` setelah pembulatan; penyebut 0 / tanpa data → rasio null (bukan kritis)
+- ✅ Streak `Tidak_Hadir` ≥ 3 dari baris terbaru (urutan `tanggal`, `waktu_mulai_presensi`, `id_jadwal`); `Hadir`/`Manual`/`Izin` memutus; slot kosong tidak memutus
+- ✅ Periode dari env `DSS_PERIODE_HARI` (default 30 hari, termasuk hari ini WIB via `toWibDate`); invalid → default + `Logger.warn`
+- ✅ `GET /v1/musyrif/dss/santri-kritis` (hanya binaan aktif): 3 query tetap + hitung di memori (tanpa N+1); field `jumlah { hadir, tidak_hadir, izin }`, `alasan`, `rekomendasi_tindakan` (aturan tetap `ATURAN_REKOMENDASI`); urut rasio ↑, streak ↓, nim ↑
+- ✅ 29 unit test (fungsi murni + service: tepat 75 bukan kritis, 74,9 kritis, 74,95 membulat jadi 75, tiga alpha lintas hari/jadwal, dua alpha lalu Hadir, Izin bukan alpha + keluar penyebut, Manual = hadir, penyebut nol, baris luar periode, batas WIB vs UTC, urutan respons, env invalid)
+- **Batasan EWS (diketahui, diterima)**: penilaian hanya menghitung **baris presensi yang tercatat**. Hari yang tidak diproses job (server mati / menit terlewat tanpa backfill) **tidak punya baris**, sehingga Tidak_Hadir hari itu **tidak terhitung alpha** sampai backfill manual (`POST /v1/admin/jobs/tandai-tidak-hadir`) dijalankan untuk tanggal lampau.
 
 **11. Activity log** ⬜
 - ⬜ Interceptor pencatat aktivitas
@@ -99,14 +103,13 @@ Tahap 1 sampai 5, tahap 7 (izin, tanpa upload lampiran), dan tahap 8 (scheduled 
 
 1. Tahap 6 riwayat dan ringkasan
 2. Tahap 7 lampiran izin (MinIO) — bagian izin sudah selesai
-3. Tahap 10 DSS dan EWS (sebelum 9, karena fitur unggulan project)
-4. Tahap 9 monitoring dan grafik Musyrif
-5. Tahap 11 activity log (wajib untuk laporan, ketentuan audit trail)
-6. Tahap 12 rekap dan grafik Admin
-7. Tahap 13 testing (unit test inti sudah dimulai di tahap 5)
-8. Tahap 14 Docker aplikasi
+3. Tahap 9 monitoring dan grafik Musyrif
+4. Tahap 11 activity log (wajib untuk laporan, ketentuan audit trail)
+5. Tahap 12 rekap dan grafik Admin
+6. Tahap 13 testing (unit test inti sudah dimulai di tahap 5, EWS di tahap 10)
+7. Tahap 14 Docker aplikasi
 
-Jika waktu terbatas, potong dari bawah. Yang wajib: tahap 6, 10, 11 (izin dan scheduled job sudah selesai; lampiran MinIO boleh menyusul). Tahap 9 dan 12 cukup satu endpoint grafik per role. Tahap 13 cukup unit test inti. Tahap 14 paling akhir.
+Jika waktu terbatas, potong dari bawah. Yang wajib: tahap 6 dan 11 (izin, scheduled job, dan DSS/EWS sudah selesai; lampiran MinIO boleh menyusul). Tahap 9 dan 12 cukup satu endpoint grafik per role. Tahap 13 cukup unit test inti. Tahap 14 paling akhir.
 
 Sebelum tahap 13, bereskan backlog P2 no. 10 (sisa mengganti e2e bawaan).
 
@@ -153,3 +156,4 @@ Sebelum tahap 13, bereskan backlog P2 no. 10 (sisa mengganti e2e bawaan).
 - [x] Tahap 7 izin (state machine Pending → Disetujui/Ditolak aman race; verifikasi `Disetujui` konversi `Tidak_Hadir` → `Izin` atomik dalam `$transaction`; 27 unit test + 20 tes manual)
   - **Batasan race job vs persetujuan (diketahui, diterima)**: konversi hanya menyentuh baris `Tidak_Hadir` yang **sudah ada** saat verifikasi berjalan. Jika cron job membaca status izin (`Pending`) tepat sebelum transaksi persetujuan commit, job dapat membuat baris `Tidak_Hadir` **sesudah** persetujuan selesai — baris telat itu tidak ikut terkonversi dan verify kedua tidak bisa (status sudah final → 409); perbaikannya backfill `POST /v1/admin/jobs/tandai-tidak-hadir` + update manual. Kasus aman: job yang berjalan **setelah** persetujuan commit membaca izin `Disetujui` dan membuat baris `Izin` langsung (logika tahap 8).
 - [x] Tahap 8 scheduled job `Tidak_Hadir` (cron + pemicu manual Admin, opsi A masjid utama + koordinat 0,0; 21 unit test + 14 tes manual)
+- [x] Tahap 10 DSS & EWS (`GET /v1/musyrif/dss/santri-kritis`; fungsi murni `ews.ts`, 3 query tanpa N+1, 29 unit test; penyebut = baris presensi tercatat dalam periode, `< 75` setelah bulat 1 desimal)

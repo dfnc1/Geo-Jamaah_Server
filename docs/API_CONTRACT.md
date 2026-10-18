@@ -266,25 +266,37 @@ Kirim token di header: `Authorization: Bearer <access_token>`.
 
 ---
 
-# Endpoint Rencana (📋 Belum Diimplementasikan)
-
-Daftar fitur dari PRD yang belum punya kode. Jangan dipanggil frontend sebelum kode ada. Perlu diputuskan detailnya sebelum tahap terkait dikerjakan.
-
-## 📋 GET /v1/musyrif/dss/santri-kritis
-- Akses: Musyrif
+## ✅ GET /v1/musyrif/dss/santri-kritis
+- Akses: Musyrif (`@Roles(Role.Musyrif)`). Hanya Mahasantri **binaan** dengan `status_aktif = true` (BR-08).
+- Periode: `DSS_PERIODE_HARI` hari terakhir **termasuk hari ini (WIB)** — default 30; nilai env bukan bilangan bulat > 0 → default + `Logger.warn`.
+- Kategori `KRITIS` bila salah satu: (1) rasio kehadiran < 75% — **setelah** pembulatan satu desimal; (2) streak `Tidak_Hadir` ≥ 3 berturut-turut (dihitung mundur dari baris terbaru; `Hadir`/`Manual`/`Izin` memutus; slot tanpa baris tidak memutus).
+- Rasio = (`Hadir` + `Manual`) / (jumlah **baris presensi tercatat** dalam periode − `Izin`) × 100, dibulatkan 1 desimal. `Izin` dikeluarkan dari penyebut dan bukan alpha. Tanpa baris / penyebut 0 → rasio tidak dihitung, santri tidak muncul (respons selalu berupa angka).
+- Field `jumlah`: `{ hadir, tidak_hadir, izin }` — hitungan per status dari baris dalam periode; `Manual` masuk `hadir`.
+- `alasan`: subset urut dari `["rasio", "streak"]` yang memicu kategori; `rekomendasi_tindakan` mengikuti aturan tetap di server (lihat BR-08).
+- Urutan respons: `rasio_kehadiran` menaik → `streak_alpha` menurun → `nim` menaik. Bisa `[]`.
+- Hanya kolom `status_presensi`, `tanggal`, dan `jadwal.waktu_mulai_presensi` yang dibaca — baris otomatis job (koordinat 0,0 / masjid utama) aman dipakai; koordinat tidak pernah ikut respons.
 - 200:
   ```json
   [
     {
-      "nim": "string",
-      "nama": "string",
+      "nim": "24050505050",
+      "nama": "Ahmad Fauzi",
       "kategori_risiko": "KRITIS",
-      "rasio_kehadiran": 68.5,
-      "streak_alpha": 3,
-      "rekomendasi_tindakan": "string"
+      "rasio_kehadiran": 61.5,
+      "streak_alpha": 0,
+      "jumlah": { "hadir": 8, "tidak_hadir": 5, "izin": 1 },
+      "alasan": ["rasio"],
+      "rekomendasi_tindakan": "Lakukan pendampingan kehadiran dan bimbingan belajar terjadwal; evaluasi mingguan bersama mahasantri."
     }
   ]
   ```
+- Error: 401, 403 `ERR_FORBIDDEN_ROLE`, 404 `ERR_MUSYRIF_NOT_FOUND` (token Musyrif tanpa profil — defensif)
+
+---
+
+# Endpoint Rencana (📋 Belum Diimplementasikan)
+
+Daftar fitur dari PRD yang belum punya kode. Jangan dipanggil frontend sebelum kode ada. Perlu diputuskan detailnya sebelum tahap terkait dikerjakan.
 
 ## 📋 GET /v1/admin/activity-logs
 - Akses: Admin

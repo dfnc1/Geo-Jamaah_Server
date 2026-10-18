@@ -34,7 +34,7 @@ Legenda: 🟢 **Siap** = sudah ada di kode dan teruji. ⚪ **Rencana** = belum d
 | `GET` | `/v1/musyrif/izin?status=Pending` | Musyrif | 🟢 Siap (tahap 7) |
 | `PATCH` | `/v1/musyrif/izin/:id_izin/verify` | Musyrif | 🟢 Siap (tahap 7) |
 | `POST` | `/v1/admin/jobs/tandai-tidak-hadir` | Admin | 🟢 Siap (tahap 8) |
-| `GET` | `/v1/musyrif/dss/santri-kritis` | Musyrif | ⚪ Rencana (tahap 10) |
+| `GET` | `/v1/musyrif/dss/santri-kritis` | Musyrif | ✅ Selesai (tahap 10) |
 | `GET` | `/v1/admin/activity-logs` | Admin | ⚪ Rencana (tahap 11) |
 | `GET` | `/v1/admin/rekap` | Admin | ⚪ Rencana (tahap 12) |
 
@@ -154,3 +154,10 @@ Semua endpoint `/v1/admin/*` hanya untuk role Admin (selain itu 403 `ERR_FORBIDD
 - Frontend **tidak perlu melakukan apa pun**: server menandai otomatis sendiri. Setelah `waktu_akhir_presensi` sebuah shalat lewat (zona Asia/Jakarta), Mahasantri aktif yang belum presensi pada jadwal itu mendapat baris Presensi `Tidak_Hadir` — atau `Izin` bila ada Izin `Disetujui` pada tanggal itu.
 - `POST /v1/admin/jobs/tandai-tidak-hadir` (Admin, body opsional `{ tanggal, id_jadwal }`) hanya untuk pemicu manual/demo atau backfill tanggal terlewat; hasilnya `dibuat: { Tidak_Hadir, Izin }`. Idempoten — dipanggil berkali-kali aman dan tidak menimpa `Hadir`.
 - **Baris otomatis tidak punya lokasi asli**: `latitude_user`/`longitude_user` = `0`, `id_masjid` = masjid utama. Saat menampilkan riwayat/presensi, jangan menampilkan koordinat atau hitung jarak untuk status `Tidak_Hadir`/`Izin` — cukup tampilkan statusnya.
+
+## Catatan DSS & EWS (`GET /v1/musyrif/dss/santri-kritis`)
+
+- Hanya Mahasantri binaan Musyrif yang **masih aktif** yang dinilai; respons bisa `[]` (tidak ada yang kritis) — tampilkan empty state, bukan error.
+- Respons memuat `kategori_risiko: "KRITIS"`, `rasio_kehadiran` (persen 1 desimal), `streak_alpha`, `jumlah: { hadir, tidak_hadir, izin }`, `alasan` (`"rasio"` dan/atau `"streak"`), dan `rekomendasi_tindakan` (teks dari server — tampilkan apa adanya, jangan susun sendiri).
+- Urutan sudah dihitung server: rasio paling rendah dulu. Periode penilaian = `DSS_PERIODE_HARI` hari terakhir termasuk hari ini (WIB, default 30); hari tanpa baris presensi (mis. server sempat mati dan belum di-backfill) tidak dihitung sebagai alpha — backfill via `POST /v1/admin/jobs/tandai-tidak-hadir`.
+- Data `jumlah` dipakai untuk menampilkan pecahan (mis. "8 dari 11 hari terhitung hadir"); `Izin` tidak mengurangi skor dan bukan alpha.

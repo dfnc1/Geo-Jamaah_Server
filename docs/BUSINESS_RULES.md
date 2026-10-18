@@ -47,10 +47,11 @@ Mahasantri berkategori `KRITIS` jika memenuhi salah satu:
 2. Status `Tidak_Hadir` 3 kali berturut-turut (streak alpha).
 
 Aturan perhitungan:
-- Rasio = jumlah `Hadir` / (jumlah jadwal terhitung - jumlah `Izin`).
+- Rasio = jumlah `Hadir` / (jumlah baris presensi terhitung dalam periode - jumlah `Izin`).
 - Presensi berstatus `Izin` tidak dihitung sebagai ketidakhadiran.
 - Status `Manual` dihitung sebagai hadir.
-- Periode perhitungan: ditentukan di konfigurasi (default 30 hari terakhir).
+- Periode perhitungan: N hari terakhir **termasuk hari ini (WIB)**, N dari konfigurasi `DSS_PERIODE_HARI` (default 30 hari). Hanya **baris presensi tercatat** dalam periode yang dihitung (tidak ada slot virtual hari x jadwal); hal yang sama berlaku untuk streak.
+- Perbandingan `rasio < 75` dilakukan setelah pembulatan rasio ke satu desimal.
 - Streak dihitung berdasarkan urutan jadwal shalat secara kronologis.
 - Musyrif hanya melihat Mahasantri binaannya.
 
