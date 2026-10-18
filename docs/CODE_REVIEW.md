@@ -4,7 +4,7 @@ Legenda: ✅ selesai, 🟡 sebagian, ⬜ belum.
 
 ## Posisi Sekarang
 
-Tahap 1 sampai 5, tahap 7 (izin, tanpa upload lampiran), tahap 8 (scheduled job `Tidak_Hadir`), tahap 10 (DSS & EWS), dan tahap 11 (activity log / audit trail) selesai (setup dasar, auth/RBAC/device binding, seed, master data Admin, presensi geolokasi, pengajuan/daftar/verifikasi izin dengan state machine, job penandaan absen otomatis + pemicu manual, endpoint santri kritis dengan rasio/streak EWS, serta interceptor audit + endpoint daftar log untuk Admin). P1 (env, Swagger, throttler) juga sudah beres. Berikutnya tahap 6 (Riwayat dan ringkasan hari ini). Sisa pekerjaan besar: riwayat, lampiran izin (MinIO), monitoring/grafik, rekap, testing, dan Docker aplikasi.
+Tahap 1 sampai 5, tahap 7 (izin, tanpa upload lampiran), tahap 8 (scheduled job `Tidak_Hadir`), **tahap 9 (monitoring Musyrif; grafik menyusul)**, tahap 10 (DSS & EWS), dan tahap 11 (activity log / audit trail) selesai (setup dasar, auth/RBAC/device binding, seed, master data Admin, presensi geolokasi, pengajuan/daftar/verifikasi izin dengan state machine, job penandaan absen otomatis + pemicu manual, matriks monitoring presensi harian binaan, endpoint santri kritis dengan rasio/streak EWS, serta interceptor audit + endpoint daftar log untuk Admin). P1 (env, Swagger, throttler) juga sudah beres. Berikutnya tahap 6 (Riwayat dan ringkasan hari ini). Sisa pekerjaan besar: riwayat, lampiran izin (MinIO), grafik monitoring, rekap, testing, dan Docker aplikasi.
 
 ## Status 14 Tahap Backend
 
@@ -68,9 +68,13 @@ Tahap 1 sampai 5, tahap 7 (izin, tanpa upload lampiran), tahap 8 (scheduled job 
 - ✅ Fungsi murni `tentukanAbsensi` + 21 unit test (5 skenario status, idempoten, isolasi error per jadwal dan per baris, fallback P2002)
 - ✅ Tes manual 14 skenario (cron otomatis, backfill, idempoten, validasi, RBAC, verifikasi DB tanpa duplikat)
 
-**9. Monitoring Musyrif dan grafik** ⬜
-- ⬜ Monitoring presensi santri binaan
-- ⬜ Endpoint grafik tren kehadiran Musyrif
+**9. Monitoring Musyrif dan grafik** 🟡
+- ✅ `GET /v1/musyrif/presensi/monitoring?tanggal=YYYY-MM-DD` (Musyrif; default hari ini WIB, tanggal lampau = riwayat, masa depan → 400 `ERR_VALIDATION` sebelum query)
+- ✅ Matriks per santri binaan **aktif** per jadwal: `Hadir`/`Tidak_Hadir`/`Izin`/`Manual` atau `"Belum"` (belum ada baris), plus `ringkasan` jumlah **sel** (santri × jadwal) per status di tingkat atas
+- ✅ Maksimal **3 query** tanpa N+1: profil Musyrif → santri binaan (`where { id_musyrif, status_aktif: true }`, urut `nim`) → `jadwalSholat.findMany` **dengan nested `presensi`** (`where { tanggal, nim: in }`, urut `waktu_azan`). **Keputusan: arah query dari sisi `jadwalSholat`** supaya jadwal yang belum punya baris presensi pun tetap muncul sebagai kolom `"Belum"` (bila diarahkan dari `presensi`, jadwal sepi akan hilang dari matriks)
+- ✅ 18 unit test baru (fungsi murni `src/presensi/monitoring.ts` + service mock Prisma: tepat 3 panggilan query, 404 profil hilang, filter binaan, batas WIB vs UTC, `"Belum"`, ringkasan sel, isolasi santri/jadwal lain, in[] kosong) + tes manual curl
+- ✅ Isolasi teruji manual: Musyrif kedua (akun uji) melihat `santri: []` untuk tanggal yang sama; Mahasantri & Admin 403 `ERR_FORBIDDEN_ROLE`
+- ⬜ Endpoint grafik tren kehadiran Musyrif (menyusul)
 
 **10. DSS dan EWS** ✅
 - ✅ Fungsi murni `src/dss/ews.ts`: rasio = (`Hadir`+`Manual`) / (baris presensi tercatat dalam periode − `Izin`) ×100 dibulatkan 1 desimal; `< 75` setelah pembulatan; penyebut 0 / tanpa data → rasio null (bukan kritis)
@@ -109,12 +113,12 @@ Tahap 1 sampai 5, tahap 7 (izin, tanpa upload lampiran), tahap 8 (scheduled job 
 
 1. Tahap 6 riwayat dan ringkasan
 2. Tahap 7 lampiran izin (MinIO) — bagian izin sudah selesai
-3. Tahap 9 monitoring dan grafik Musyrif
+3. Tahap 9 grafik tren kehadiran Musyrif (monitoring sudah selesai)
 4. Tahap 12 rekap dan grafik Admin
-5. Tahap 13 testing (unit test inti sudah dimulai di tahap 5, EWS di tahap 10, activity log di tahap 11)
+5. Tahap 13 testing (unit test inti sudah dimulai di tahap 5, EWS di tahap 10, monitoring di tahap 9, activity log di tahap 11)
 6. Tahap 14 Docker aplikasi
 
-Jika waktu terbatas, potong dari bawah. Yang wajib: tahap 6 (izin, scheduled job, DSS/EWS, dan activity log sudah selesai; lampiran MinIO boleh menyusul). Tahap 9 dan 12 cukup satu endpoint grafik per role. Tahap 13 cukup unit test inti. Tahap 14 paling akhir.
+Jika waktu terbatas, potong dari bawah. Yang wajib: tahap 6 (izin, scheduled job, monitoring, DSS/EWS, dan activity log sudah selesai; lampiran MinIO boleh menyusul). Tahap 9 dan 12 cukup satu endpoint grafik per role. Tahap 13 cukup unit test inti. Tahap 14 paling akhir.
 
 Sebelum tahap 13, bereskan backlog P2 no. 10 (sisa mengganti e2e bawaan).
 
@@ -139,7 +143,7 @@ Sebelum tahap 13, bereskan backlog P2 no. 10 (sisa mengganti e2e bawaan).
 
 | File | Status |
 |---|---|
-| `API_CONTRACT.md` | ✅ Login lengkap (`ERR_ACCOUNT_INACTIVE`, `ERR_DEVICE_ID_REQUIRED`, `ERR_TOO_MANY_REQUESTS`, `device_id` wajib hanya untuk Mahasantri) dan 11 endpoint Admin; `GET /v1/admin/activity-logs`, `nama_sholat` di respons presensi, serta teks login gagal (termasuk role placeholder) ditambahkan di tahap 11 |
+| `API_CONTRACT.md` | ✅ Login lengkap (`ERR_ACCOUNT_INACTIVE`, `ERR_DEVICE_ID_REQUIRED`, `ERR_TOO_MANY_REQUESTS`, `device_id` wajib hanya untuk Mahasantri) dan 12 endpoint Admin; `GET /v1/musyrif/presensi/monitoring` (tahap 9), `GET /v1/admin/activity-logs`, `nama_sholat` di respons presensi, serta teks login gagal (termasuk role placeholder) ditambahkan di tahap 11 |
 | `DATABASE_SCHEMA.md` | ✅ Bagian Prisma schema disalin ulang dari `prisma/schema.prisma`; daftar index dan foreign key diperbarui |
 | `README.md` | ✅ Status modul sesuai kenyataan, `src/common/` dan `src/admin/` di struktur folder, bagian Swagger, variabel `.env`, Node 24+ |
 | `FRONTEND_GUIDE.md` | ✅ Dibuat berisi tabel status endpoint (Siap / Rencana). Perbarui tiap ada endpoint baru |
@@ -161,6 +165,10 @@ Sebelum tahap 13, bereskan backlog P2 no. 10 (sisa mengganti e2e bawaan).
 - [x] Tahap 7 izin (state machine Pending → Disetujui/Ditolak aman race; verifikasi `Disetujui` konversi `Tidak_Hadir` → `Izin` atomik dalam `$transaction`; 27 unit test + 20 tes manual)
   - **Batasan race job vs persetujuan (diketahui, diterima)**: konversi hanya menyentuh baris `Tidak_Hadir` yang **sudah ada** saat verifikasi berjalan. Jika cron job membaca status izin (`Pending`) tepat sebelum transaksi persetujuan commit, job dapat membuat baris `Tidak_Hadir` **sesudah** persetujuan selesai — baris telat itu tidak ikut terkonversi dan verify kedua tidak bisa (status sudah final → 409); perbaikannya backfill `POST /v1/admin/jobs/tandai-tidak-hadir` + update manual. Kasus aman: job yang berjalan **setelah** persetujuan commit membaca izin `Disetujui` dan membuat baris `Izin` langsung (logika tahap 8).
 - [x] Tahap 8 scheduled job `Tidak_Hadir` (cron + pemicu manual Admin, opsi A masjid utama + koordinat 0,0; 21 unit test + 14 tes manual)
+- [x] Tahap 9 monitoring Musyrif (`GET /v1/musyrif/presensi/monitoring`; matriks Hadir/Tidak_Hadir/Izin/Manual/"Belum" + ringkasan sel; 3 query: profil, binaan aktif, `jadwalSholat` + nested presensi; 18 unit test + tes manual curl; grafik tren menyusul)
+  - **Keputusan arah query presensi**: diambil dari sisi `jadwalSholat.findMany` (nested `presensi`) supaya jadwal yang belum punya baris pun tetap muncul sebagai kolom `"Belum"`.
+  - **Keputusan isi `ringkasan`**: menghitung **sel** (santri × jadwal) per status, bukan per santri — totalnya selalu `jumlah_santri × jumlah_jadwal`.
+  - **Keputusan `"Belum"`**: tanpa baris presensi (termasuk window belum lewat) = `"Belum"`, bukan `Tidak_Hadir` — hanya baris nyata yang dilaporkan, konsisten dengan batasan EWS tahap 10.
 - [x] Tahap 10 DSS & EWS (`GET /v1/musyrif/dss/santri-kritis`; fungsi murni `ews.ts`, 3 query tanpa N+1, 29 unit test; penyebut = baris presensi tercatat dalam periode, `< 75` setelah bulat 1 desimal)
 - [x] Tahap 11 activity log (`@Audit` + `APP_INTERCEPTOR` `ActivityLogInterceptor`, fungsi murni `audit-teks.ts`, `GET /v1/admin/activity-logs` hanya-Admin dengan filter WIB + pagination `limit` maks 100; 61 unit test + tes manual curl; append-only, fire-and-forget)
   - **Keputusan placeholder role**: login gagal untuk username yang tidak terdaftar dicatat dengan role `Mahasantri` sebagai **penanda saja** (role sebenarnya memang tidak ada); teksnya `"Login gagal: username tidak terdaftar"`.

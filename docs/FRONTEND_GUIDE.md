@@ -35,6 +35,7 @@ Legenda: 🟢 **Siap** = sudah ada di kode dan teruji. ⚪ **Rencana** = belum d
 | `PATCH` | `/v1/musyrif/izin/:id_izin/verify` | Musyrif | 🟢 Siap (tahap 7) |
 | `POST` | `/v1/admin/jobs/tandai-tidak-hadir` | Admin | 🟢 Siap (tahap 8) |
 | `GET` | `/v1/musyrif/dss/santri-kritis` | Musyrif | ✅ Selesai (tahap 10) |
+| `GET` | `/v1/musyrif/presensi/monitoring` | Musyrif | ✅ Selesai (tahap 9) |
 | `GET` | `/v1/admin/activity-logs` | Admin | ✅ Selesai (tahap 11) |
 | `GET` | `/v1/admin/rekap` | Admin | ⚪ Rencana (tahap 12) |
 
@@ -161,6 +162,16 @@ Semua endpoint `/v1/admin/*` hanya untuk role Admin (selain itu 403 `ERR_FORBIDD
 - Respons memuat `kategori_risiko: "KRITIS"`, `rasio_kehadiran` (persen 1 desimal), `streak_alpha`, `jumlah: { hadir, tidak_hadir, izin }`, `alasan` (`"rasio"` dan/atau `"streak"`), dan `rekomendasi_tindakan` (teks dari server — tampilkan apa adanya, jangan susun sendiri).
 - Urutan sudah dihitung server: rasio paling rendah dulu. Periode penilaian = `DSS_PERIODE_HARI` hari terakhir termasuk hari ini (WIB, default 30); hari tanpa baris presensi (mis. server sempat mati dan belum di-backfill) tidak dihitung sebagai alpha — backfill via `POST /v1/admin/jobs/tandai-tidak-hadir`.
 - Data `jumlah` dipakai untuk menampilkan pecahan (mis. "8 dari 11 hari terhitung hadir"); `Izin` tidak mengurangi skor dan bukan alpha.
+
+## Catatan Monitoring (`GET /v1/musyrif/presensi/monitoring`, tahap 9)
+
+- Hanya **Musyrif** (Admin pun dapat 403) dan hanya **santri binaan dengan `status_aktif = true`** — tidak perlu filter lagi di frontend; santri Musyrif lain tidak pernah muncul.
+- Query `tanggal` (`YYYY-MM-DD`, default hari ini WIB dihitung server). **Tanggal masa depan ditolak 400** — jadi date picker sebaiknya membatasi maksimal hari ini. Tanggal lampau diperbolehkan untuk melihat riwayat.
+- Bentuk `data`: `{ tanggal, jadwal, ringkasan, santri }` — bukan array. Render sebagai tabel: kolom = `jadwal` (urut azan menaik), baris = `santri` (urut `nim` menaik), sel = `santri[i].status[j].status` (urutan `status` mengikuti urutan `jadwal`).
+- Nilai sel: `Hadir` | `Tidak_Hadir` | `Izin` | `Manual` | `"Belum"`. **`"Belum"` bukan error** — artinya belum ada baris presensi (termasuk shalat yang window-nya belum lewat); jangan langsung menandai santri bolos.
+- `ringkasan` = jumlah **sel** (santri × jadwal) per status, bukan jumlah santri; totalnya selalu `len(santri) × len(jadwal)` — cocok untuk baris "Hadir 8 · Izin 1 · Tidak_Hadir 2 · Belum 4 dari 15 slot".
+- Bisa berupa `santri: []` (Musyrif belum punya binaan aktif) — tampilkan empty state, bukan error. `ringkasan` semua 0 saat itu.
+- Data presensi otomatis (hasil cron) ikut tampil sebagai `Tidak_Hadir`/`Izin` — tidak ada pembedaan tampilan dengan presensi asli.
 
 ## Catatan Activity Log (`GET /v1/admin/activity-logs`, BR-11)
 

@@ -346,6 +346,49 @@ Kirim token di header: `Authorization: Bearer <access_token>`.
 
 ---
 
+## ✅ GET /v1/musyrif/presensi/monitoring
+- Akses: Musyrif (`@Roles(Role.Musyrif)`); Admin/Mahasantri → 403 `ERR_FORBIDDEN_ROLE`, tanpa token → 401. GET (tidak pernah menciptakan activity log).
+- Query: `tanggal` opsional, format ketat `YYYY-MM-DD` dan tanggal kalender valid (`2026-02-30` → 400). **Default hari ini (WIB)** dihitung server (`toWibDate`), bukan jam HP. Tanggal lampau diperbolehkan (melihat riwayat hari itu); **tanggal setelah hari ini WIB → 400 `ERR_VALIDATION`** `"tanggal tidak boleh melebihi hari ini"` (pemeriksaan sebelum query apa pun).
+- Cakupan: **hanya Mahasantri binaan** token Musyrif (`mahasantri.id_musyrif` = profil token) dan **hanya `status_aktif = true`** — santri binaan lain Musyrif, santri nonaktif, dan Musyrif tanpa binaan tidak pernah muncul (`santri: []`, `ringkasan` semua 0).
+- **Matriks status per sel** (santri × jadwal), maksimal 3 query tanpa N+1 (profil Musyrif → santri binaan → jadwal + presensi nested):
+  - `Hadir`, `Tidak_Hadir`, `Izin`, `Manual` = baris presensi pada `(nim, id_jadwal, tanggal)` itu; `"Belum"` = belum ada baris (termasuk jadwal yang window-nya belum lewat dan jadwal yang belum diproses job).
+  - `jadwal` diurut `waktu_azan` menaik (string `HH:mm` zero-padded → urutan leksikal = kronologis); `santri` diurut `nim` menaik.
+  - `ringkasan` menghitung **sel** (bukan santri): totalnya selalu `jumlah_santri × jumlah_jadwal`.
+- 200 (contoh, 2 santri × 2 jadwal):
+  ```json
+  {
+    "success": true, "statusCode": 200, "message": "Monitoring presensi berhasil diambil",
+    "data": {
+      "tanggal": "2026-10-15",
+      "jadwal": [
+        { "id_jadwal": "uuid", "nama_sholat": "Subuh", "waktu_azan": "04:30", "waktu_mulai_presensi": "04:15", "waktu_akhir_presensi": "05:10" },
+        { "id_jadwal": "uuid", "nama_sholat": "Dzuhur", "waktu_azan": "11:45", "waktu_mulai_presensi": "11:30", "waktu_akhir_presensi": "12:30" }
+      ],
+      "ringkasan": { "Hadir": 0, "Tidak_Hadir": 2, "Izin": 2, "Manual": 0, "Belum": 0 },
+      "santri": [
+        {
+          "nim": "24050505050", "nama": "santri_satu", "kamar": "A0-1",
+          "status": [
+            { "id_jadwal": "uuid", "nama_sholat": "Subuh", "status": "Izin" },
+            { "id_jadwal": "uuid", "nama_sholat": "Dzuhur", "status": "Izin" }
+          ]
+        },
+        {
+          "nim": "24060505092", "nama": "santri_tiga", "kamar": "A1-1",
+          "status": [
+            { "id_jadwal": "uuid", "nama_sholat": "Subuh", "status": "Tidak_Hadir" },
+            { "id_jadwal": "uuid", "nama_sholat": "Dzuhur", "status": "Tidak_Hadir" }
+          ]
+        }
+      ]
+    }
+  }
+  ```
+- Tanpa baris presensi pada tanggal itu → semua sel `"Belum"` (jadwal tetap tampil). Tanpa binaan aktif → `santri: []` dan `ringkasan` semua 0 (bukan 404).
+- Error: 400 `ERR_VALIDATION` (format tanggal salah / bukan tanggal kalender / tanggal masa depan), 401, 403 `ERR_FORBIDDEN_ROLE`, 404 `ERR_MUSYRIF_NOT_FOUND` (token Musyrif tanpa profil — defensif).
+
+---
+
 # Endpoint Rencana (📋 Belum Diimplementasikan)
 
 Daftar fitur dari PRD yang belum punya kode. Jangan dipanggil frontend sebelum kode ada. Perlu diputuskan detailnya sebelum tahap terkait dikerjakan.
@@ -353,7 +396,6 @@ Daftar fitur dari PRD yang belum punya kode. Jangan dipanggil frontend sebelum k
 ## 📋 Endpoint Rencana Lainnya
 - `GET /v1/presensi/hari-ini` (ringkasan 5 shalat hari ini, Mahasantri)
 - `GET /v1/presensi/riwayat` (riwayat kehadiran, Mahasantri)
-- `GET /v1/musyrif/presensi/monitoring` (dashboard real-time Musyrif)
 - `POST /v1/izin/lampiran` (upload ke MinIO, mengembalikan object key)
 - `GET /v1/admin/rekap` (rekapitulasi global)
 - `GET /v1/admin/mahasantri`, `GET/PATCH/DELETE /v1/admin/mahasantri/:nim` (CRUD lengkap Mahasantri; sekarang hanya endpoint reset-device)

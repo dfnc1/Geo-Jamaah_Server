@@ -300,6 +300,7 @@ Base path: `/v1` | Swagger UI: `/docs`
 | `PATCH` | `/v1/musyrif/izin/:id_izin/verify` | Musyrif | Verifikasi Disetujui/Ditolak (state machine anti-race) |
 | `POST` | `/v1/admin/jobs/tandai-tidak-hadir` | Admin | Pemicu manual job Tidak_Hadir/Izin (BR-05; cron juga jalan otomatis) |
 | `GET` | `/v1/musyrif/dss/santri-kritis` | Musyrif | Daftar santri kritis: rasio < 75% atau streak alpha ≥ 3 (BR-08) |
+| `GET` | `/v1/musyrif/presensi/monitoring` | Musyrif | Matriks presensi harian santri binaan per jadwal (Hadir/Tidak_Hadir/Izin/Manual/Belum) |
 | `GET` | `/v1/admin/activity-logs` | Admin | Daftar activity log (filter role/username/modul/tanggal, pagination; BR-11) |
 
 **Rencana (belum diimplementasikan):**
@@ -374,7 +375,7 @@ Proyek ini menggunakan [Conventional Commits](https://www.conventionalcommits.or
 | Riwayat & ringkasan hari ini | ⏳ Belum Dimulai | Tahap 6 |
 | Modul Izin & lampiran | 🟡 Sebagian | Tahap 7: izin selesai (ajukan, daftar, filter, verifikasi Musyrif pembina dengan state machine aman race + konversi `Tidak_Hadir` → `Izin` atomik saat Disetujui; 27 unit test). Upload lampiran MinIO menyusul |
 | Scheduled job `Tidak_Hadir` | ✅ Selesai | Cron `@nestjs/schedule` tiap menit (Asia/Jakarta) + pemicu manual Admin; izin Disetujui → status `Izin`; idempoten (skipDuplicates, Hadir tidak ditimpa); baris otomatis: masjid utama + koordinat 0,0; 21 unit test |
-| Monitoring Musyrif & grafik | ⏳ Belum Dimulai | Tahap 9 |
+| Monitoring Musyrif & grafik | 🟡 Sebagian | Tahap 9: `GET /v1/musyrif/presensi/monitoring` (matriks Hadir/Tidak_Hadir/Izin/Manual/"Belum" per jadwal + ringkasan sel; 3 query tanpa N+1; 18 unit test). Grafik tren kehadiran menyusul |
 | DSS & EWS | ✅ Selesai | Tahap 10: `GET /v1/musyrif/dss/santri-kritis` (rasio = Hadir+Manual / (baris presensi periode − Izin), streak alpha; 29 unit test) |
 | Activity log | ✅ Selesai | Tahap 11: interceptor `@Audit` + `APP_INTERCEPTOR` (11 titik aksi, GET tidak dicatat, teks eksplisit tanpa password/token/`device_id`, gagal menulis log tidak menggagalkan request) + `GET /v1/admin/activity-logs` (hanya Admin, filter WIB & pagination); 61 unit test |
 | Rekap Admin & grafik | ⏳ Belum Dimulai | Tahap 12 |
