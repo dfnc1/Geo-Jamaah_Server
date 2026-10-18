@@ -150,5 +150,6 @@ Sebelum tahap 13, bereskan backlog P2 no. 10 (sisa mengganti e2e bawaan).
 - [x] Sinkron dokumen
 - [x] Tahap 4 master data Admin
 - [x] Tahap 5 presensi (Haversine, window time, anti-fake GPS; 16 unit test + 14 tes manual)
-- [x] Tahap 7 izin (state machine Pending → Disetujui/Ditolak aman race; 24 unit test + 20 tes manual)
+- [x] Tahap 7 izin (state machine Pending → Disetujui/Ditolak aman race; verifikasi `Disetujui` konversi `Tidak_Hadir` → `Izin` atomik dalam `$transaction`; 27 unit test + 20 tes manual)
+  - **Batasan race job vs persetujuan (diketahui, diterima)**: konversi hanya menyentuh baris `Tidak_Hadir` yang **sudah ada** saat verifikasi berjalan. Jika cron job membaca status izin (`Pending`) tepat sebelum transaksi persetujuan commit, job dapat membuat baris `Tidak_Hadir` **sesudah** persetujuan selesai — baris telat itu tidak ikut terkonversi dan verify kedua tidak bisa (status sudah final → 409); perbaikannya backfill `POST /v1/admin/jobs/tandai-tidak-hadir` + update manual. Kasus aman: job yang berjalan **setelah** persetujuan commit membaca izin `Disetujui` dan membuat baris `Izin` langsung (logika tahap 8).
 - [x] Tahap 8 scheduled job `Tidak_Hadir` (cron + pemicu manual Admin, opsi A masjid utama + koordinat 0,0; 21 unit test + 14 tes manual)

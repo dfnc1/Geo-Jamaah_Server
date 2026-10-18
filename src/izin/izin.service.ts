@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '@src/prisma/prisma.service';
 import { StatusPersetujuan } from '@generated/prisma/client';
+import { StatusPresensi } from '@generated/prisma/enums';
 import { CreateIzinDto } from './dto/create-izin.dto';
 import { QueryMusyrifIzinDto } from './dto/query-musyrif-izin.dto';
 import { VerifyIzinDto } from './dto/verify-izin.dto';
@@ -103,6 +104,12 @@ export class IzinService {
    * Urutan: 404 izin tak ada -> 403 bukan pembina -> state machine ->
    * update BERSYARAT pada status Pending supaya aman dari dua request
    * verify bersamaan: hanya satu yang mendapat count = 1; sisanya 409.
+   *
+   * Update izin tetap BERSYARAT Pending; bila count = 0, 409 dilempar
+   * DARI DALAM $transaction supaya rollback. Bila hasilnya Disetujui,
+   * baris `Tidak_Hadir` milik santri itu pada tanggal_izin diubah
+   * menjadi `Izin` dalam transaksi yang sama: izin dan presensi
+   * berhasil atau gagal bersama-sama (atomik).
    */
   async verify(
     idPengguna: string,
@@ -127,26 +134,44 @@ export class IzinService {
       throw this.alreadyDecided();
     }
 
-    const { count } = await this.prismaService.izin.updateMany({
-      // Syarat status Pending inilah yang menjamin keamanan race:
-      // dua request bersamaan tidak keduanya berhasil.
-      where: {
-        id_izin: izin.id_izin,
-        status_persetujuan: StatusPersetujuan.Pending,
-      },
-      data: { status_persetujuan: dto.status_persetujuan },
-    });
-
-    if (count === 0) {
-      // Berubah di antara fetch dan update (request lain lebih cepat) —
-      // pastikan tetap 409, bukan 404, selama barisnya masih ada.
-      const ulang = await this.prismaService.izin.findUnique({
-        where: { id_izin: idIzin },
-        select: { status_persetujuan: true },
+    await this.prismaService.$transaction(async (tx) => {
+      const { count } = await tx.izin.updateMany({
+        // Syarat status Pending inilah yang menjamin keamanan race:
+        // dua request bersamaan tidak keduanya berhasil.
+        where: {
+          id_izin: izin.id_izin,
+          status_persetujuan: StatusPersetujuan.Pending,
+        },
+        data: { status_persetujuan: dto.status_persetujuan },
       });
-      if (!ulang) throw this.izinNotFound();
-      throw this.alreadyDecided();
-    }
+
+      if (count === 0) {
+        // Berubah di antara fetch dan update (request lain lebih cepat) —
+        // lempar dari dalam transaksi supaya rollback; pastikan tetap
+        // 409, bukan 404, selama barisnya masih ada.
+        const ulang = await tx.izin.findUnique({
+          where: { id_izin: idIzin },
+          select: { status_persetujuan: true },
+        });
+        if (!ulang) throw this.izinNotFound();
+        throw this.alreadyDecided();
+      }
+
+      // Izin Disetujui -> baris Tidak_Hadir milik santri ini pada
+      // tanggal_izin menjadi Izin (job tandai-tidak-hadir membuat baris
+      // itu sebelumnya). Hanya Tidak_Hadir pada tanggal itu yang
+      // disentuh; Hadir/Manual tidak diubah.
+      if (dto.status_persetujuan === StatusPersetujuan.Disetujui) {
+        await tx.presensi.updateMany({
+          where: {
+            nim: izin.nim,
+            tanggal: izin.tanggal_izin,
+            status_presensi: StatusPresensi.Tidak_Hadir,
+          },
+          data: { status_presensi: StatusPresensi.Izin },
+        });
+      }
+    });
 
     // TODO(tahap-11): catat aktivitas "Memverifikasi izin <nim> menjadi <status>" ke activity_logs.
     return {

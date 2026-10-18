@@ -26,6 +26,7 @@
 - Jika `waktu_akhir_presensi` sebuah shalat lewat dan Mahasantri aktif tidak punya presensi pada jadwal itu, sistem membuat Presensi dengan status `Tidak_Hadir`.
 - Dijalankan oleh scheduled job (`@nestjs/schedule`), tidak ada interaksi user.
 - Jika pada tanggal itu ada Izin berstatus `Disetujui`, status yang dibuat adalah `Izin`, bukan `Tidak_Hadir`.
+- Jika Izin baru diverifikasi `Disetujui` setelah baris `Tidak_Hadir` untuk santri pada `tanggal_izin` sudah terlanjur dibuat, baris itu diubah menjadi `Izin` pada saat verifikasi (satu transaksi dengan perubahan status izin).
 - Hanya Mahasantri dengan `status_aktif = true` yang diproses.
 
 ## BR-06 Pengajuan Izin
@@ -37,6 +38,7 @@
 ## BR-07 State Machine Izin
 - `Pending -> Disetujui`
 - `Pending -> Ditolak`
+- Verifikasi ke `Disetujui` berjalan dalam **satu transaksi**: update status izin (tetap bersyarat `Pending`) sekaligus mengubah baris `Presensi` `Tidak_Hadir` milik mahasantri tersebut pada `tanggal_izin` menjadi `Izin`. Baris `Hadir`/`Manual` tidak diubah.
 - Izin yang sudah `Disetujui` atau `Ditolak` tidak dapat diubah lagi (409 `ERR_IZIN_ALREADY_DECIDED`).
 
 ## BR-08 Early Warning System (EWS)

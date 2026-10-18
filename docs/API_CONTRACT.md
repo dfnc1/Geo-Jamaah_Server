@@ -237,8 +237,9 @@ Kirim token di header: `Authorization: Bearer <access_token>`.
 - Param: `id_izin` wajib UUID (bukan UUID → 400 `ERR_VALIDATION`).
 - Body: `{ "status_persetujuan": "Disetujui | Ditolak" }` — `Pending` ditolak (400) karena verify = memutuskan.
 - State machine (BR-07): `Pending → Disetujui | Ditolak`; status final tidak bisa diubah lagi.
-- **Aman terhadap race condition**: perubahan memakai `updateMany` dengan syarat `status_persetujuan = 'Pending'` (atomic, bukan cek-lalu-update). Dua verify bersamaan → hanya satu yang berhasil; sisanya 409.
-- Urutan pemeriksaan: 404 izin tak ada → 403 bukan pembina → 409 bukan Pending → update bersyarat → bila kalah race (count 0, baris masih ada) → 409.
+- **Aman terhadap race condition**: perubahan memakai `updateMany` dengan syarat `status_persetujuan = 'Pending'` (atomic, bukan cek-lalu-update). Dua verify bersamaan → hanya satu yang berhasil; sisanya 409 (dilempar dari dalam transaksi, jadi rollback).
+- **Efek `Disetujui` pada presensi (BR-05/BR-07)**: dalam `$transaction` yang sama, baris `Presensi` `Tidak_Hadir` milik mahasantri pengaju pada `tanggal_izin` diubah menjadi `Izin` — hanya baris itu, `Hadir`/`Manual` tidak disentuh. `Ditolak` tidak mengubah presensi. `tanggal_izin` disimpan sebagai Date tengah-malam UTC, format yang sama dengan `Presensi.tanggal` (`@db.Date`), sehingga kecocokan where-clause presisi pada tanggalnya.
+- Urutan pemeriksaan: 404 izin tak ada → 403 bukan pembina → 409 bukan Pending → update bersyarat di transaksi → bila kalah race (count 0, baris masih ada) → 409 dari dalam transaksi.
 - 200: data izin terbaru + `nama_mahasantri` (satu kali klik hanya mengubah sekali; klik kedua → 409).
 - Error: 400 (`ERR_VALIDATION`), 401, 403 (`ERR_FORBIDDEN_ROLE` / `ERR_NOT_YOUR_STUDENT`), 404 (`ERR_IZIN_NOT_FOUND` / `ERR_MUSYRIF_NOT_FOUND`), 409 `ERR_IZIN_ALREADY_DECIDED`
 

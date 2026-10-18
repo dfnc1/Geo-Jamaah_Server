@@ -1,6 +1,11 @@
 import { HttpException } from '@nestjs/common';
 import { PrismaService } from '@src/prisma/prisma.service';
-import { JenisIzin, StatusPersetujuan } from '@generated/prisma/enums';
+import {
+  JenisIzin,
+  StatusPresensi,
+  StatusPersetujuan,
+} from '@generated/prisma/enums';
+import { toWibDate } from '@src/presensi/wib-time';
 import { IzinService } from './izin.service';
 import { CreateIzinDto } from './dto/create-izin.dto';
 import { QueryMusyrifIzinDto } from './dto/query-musyrif-izin.dto';
@@ -16,7 +21,7 @@ jest.mock('@src/prisma/prisma.service', () => ({
 
 /** PrismaService versi mock: hanya method yang dipakai IzinService. */
 function createPrismaMock() {
-  return {
+  const prisma = {
     mahasantri: { findUnique: jest.fn() },
     musyrif: { findUnique: jest.fn() },
     izin: {
@@ -25,7 +30,16 @@ function createPrismaMock() {
       findUnique: jest.fn(),
       updateMany: jest.fn(),
     },
+    presensi: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
+    $transaction: jest.fn(),
   };
+  // Transaksi interaktif versi mock: jalankan callback dengan dirinya
+  // sendiri. Bila callback melempar error, error menerus (tak ada perubahan
+  // parsial yang perlu di-rollback di level mock).
+  prisma.$transaction.mockImplementation(
+    async (fn: (tx: typeof prisma) => Promise<unknown>) => fn(prisma),
+  );
+  return prisma;
 }
 
 type PrismaMock = ReturnType<typeof createPrismaMock>;
@@ -239,6 +253,55 @@ describe('IzinService', () => {
       expect(hasil.nama_mahasantri).toBe('santri_satu');
     });
 
+    it('Disetujui: mengubah baris Tidak_Hadir tanggal_izin jadi Izin dalam $transaction', async () => {
+      prisma.izin.findUnique.mockResolvedValue(izinRow());
+      prisma.izin.updateMany.mockResolvedValue({ count: 1 });
+      prisma.presensi.updateMany.mockResolvedValue({ count: 1 });
+
+      await service.verify('pengguna-1', 'izin-1', VERIFY_DTO);
+
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+      expect(prisma.presensi.updateMany).toHaveBeenCalledWith({
+        where: {
+          nim: SANTRI.nim,
+          tanggal: new Date('2026-10-05T00:00:00.000Z'),
+          status_presensi: StatusPresensi.Tidak_Hadir,
+        },
+        data: { status_presensi: StatusPresensi.Izin },
+      });
+    });
+
+    it('Ditolak: presensi tidak diubah sama sekali', async () => {
+      prisma.izin.findUnique.mockResolvedValue(izinRow());
+      prisma.izin.updateMany.mockResolvedValue({ count: 1 });
+
+      await service.verify('pengguna-1', 'izin-1', {
+        status_persetujuan: StatusPersetujuan.Ditolak,
+      });
+
+      expect(prisma.presensi.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('tanggal_izin (UTC tengah malam) cocok persis dengan kolom Presensi.tanggal @db.Date', async () => {
+      prisma.izin.findUnique.mockResolvedValue(izinRow());
+      prisma.izin.updateMany.mockResolvedValue({ count: 1 });
+
+      await service.verify('pengguna-1', 'izin-1', VERIFY_DTO);
+
+      const where = prisma.presensi.updateMany.mock.calls[0][0].where;
+      // Sisi presensi menyimpan tanggal via toWibDate: instan dalam hari
+      // WIB 2026-10-05 (mis. 00:30 WIB = 2026-10-04T17:30Z) -> Date
+      // tengah-malam UTC 2026-10-05.
+      const tanggalDariSisiPresensi = toWibDate(
+        new Date('2026-10-04T17:30:00.000Z'),
+      );
+      expect(where.tanggal).toEqual(tanggalDariSisiPresensi);
+      // Bukan hasil konversi timezone runtime (offset lokal): tepat UTC
+      // tengah-malam, format bawaan kolom @db.Date.
+      expect(where.tanggal.toISOString()).toBe('2026-10-05T00:00:00.000Z');
+      expect(where.tanggal).toEqual(izinRow().tanggal_izin);
+    });
+
     it('404 ERR_IZIN_NOT_FOUND bila izin tidak ada', async () => {
       prisma.izin.findUnique.mockResolvedValue(null);
 
@@ -310,6 +373,8 @@ describe('IzinService', () => {
           }),
         }),
       );
+      // Karena kalah race (count 0), konversi presensi tidak pernah jalan.
+      expect(prisma.presensi.updateMany).not.toHaveBeenCalled();
     });
 
     it('404 bila baris hilang di antara fetch dan update', async () => {
