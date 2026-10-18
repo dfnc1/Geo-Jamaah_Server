@@ -33,6 +33,7 @@ Legenda: 🟢 **Siap** = sudah ada di kode dan teruji. ⚪ **Rencana** = belum d
 | `POST` | `/v1/izin/lampiran` | Mahasantri | ⚪ Rencana (upload MinIO) |
 | `GET` | `/v1/musyrif/izin?status=Pending` | Musyrif | 🟢 Siap (tahap 7) |
 | `PATCH` | `/v1/musyrif/izin/:id_izin/verify` | Musyrif | 🟢 Siap (tahap 7) |
+| `POST` | `/v1/admin/jobs/tandai-tidak-hadir` | Admin | 🟢 Siap (tahap 8) |
 | `GET` | `/v1/musyrif/dss/santri-kritis` | Musyrif | ⚪ Rencana (tahap 10) |
 | `GET` | `/v1/admin/activity-logs` | Admin | ⚪ Rencana (tahap 11) |
 | `GET` | `/v1/admin/rekap` | Admin | ⚪ Rencana (tahap 12) |
@@ -147,3 +148,9 @@ Semua endpoint `/v1/admin/*` hanya untuk role Admin (selain itu 403 `ERR_FORBIDD
 - **Verifikasi** — hanya `Disetujui`/`Ditolak` (kirim `Pending` → 400). Urutan respons: 404 `ERR_IZIN_NOT_FOUND` (ID tak ada) → 403 `ERR_NOT_YOUR_STUDENT` (bukan pembina) → 409 `ERR_IZIN_ALREADY_DECIDED` (sudah diputuskan).
 - **Setelah keputusan, izin final** — tombol verifikasi matikan di UI setelah 200. Dua klik/dua request bersamaan tidak merusak apa pun: server hanya mengizinkan perubahan lewat update bersyarat pada status `Pending`, jadi hanya satu yang menang; sisanya 409. Bila mendapat 409, refresh daftar — status sebenarnya sudah berubah.
 - **Belum ada upload lampiran** — `POST /v1/izin/lampiran` (MinIO) masih rencana; endpoint `POST /v1/izin` tidak menerima file/multipart, hanya string object key.
+
+## Catatan Job Tidak_Hadir (BR-05)
+
+- Frontend **tidak perlu melakukan apa pun**: server menandai otomatis sendiri. Setelah `waktu_akhir_presensi` sebuah shalat lewat (zona Asia/Jakarta), Mahasantri aktif yang belum presensi pada jadwal itu mendapat baris Presensi `Tidak_Hadir` — atau `Izin` bila ada Izin `Disetujui` pada tanggal itu.
+- `POST /v1/admin/jobs/tandai-tidak-hadir` (Admin, body opsional `{ tanggal, id_jadwal }`) hanya untuk pemicu manual/demo atau backfill tanggal terlewat; hasilnya `dibuat: { Tidak_Hadir, Izin }`. Idempoten — dipanggil berkali-kali aman dan tidak menimpa `Hadir`.
+- **Baris otomatis tidak punya lokasi asli**: `latitude_user`/`longitude_user` = `0`, `id_masjid` = masjid utama. Saat menampilkan riwayat/presensi, jangan menampilkan koordinat atau hitung jarak untuk status `Tidak_Hadir`/`Izin` — cukup tampilkan statusnya.

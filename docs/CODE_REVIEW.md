@@ -4,7 +4,7 @@ Legenda: ✅ selesai, 🟡 sebagian, ⬜ belum.
 
 ## Posisi Sekarang
 
-Tahap 1 sampai 5 dan tahap 7 (izin, tanpa upload lampiran) selesai (setup dasar, auth/RBAC/device binding, seed, master data Admin, presensi geolokasi, serta pengajuan/daftar/verifikasi izin dengan state machine). P1 (env, Swagger, throttler) juga sudah beres. Berikutnya tahap 6 (Riwayat dan ringkasan hari ini). Sisa pekerjaan besar: riwayat, lampiran izin (MinIO), scheduled job, DSS/EWS, activity log, rekap, testing, dan Docker aplikasi.
+Tahap 1 sampai 5, tahap 7 (izin, tanpa upload lampiran), dan tahap 8 (scheduled job `Tidak_Hadir`) selesai (setup dasar, auth/RBAC/device binding, seed, master data Admin, presensi geolokasi, pengajuan/daftar/verifikasi izin dengan state machine, serta job penandaan absen otomatis + pemicu manual). P1 (env, Swagger, throttler) juga sudah beres. Berikutnya tahap 6 (Riwayat dan ringkasan hari ini). Sisa pekerjaan besar: riwayat, lampiran izin (MinIO), DSS/EWS, activity log, rekap, testing, dan Docker aplikasi.
 
 ## Status 14 Tahap Backend
 
@@ -59,10 +59,14 @@ Tahap 1 sampai 5 dan tahap 7 (izin, tanpa upload lampiran) selesai (setup dasar,
 - ✅ Tes manual izin (20 skenario: validasi, RBAC, 403 bukan pembina, 409 dobel, 404, race paralel)
 - ⬜ Upload lampiran ke MinIO (`POST /v1/izin/lampiran`; `bukti_lampiran` sekarang hanya string opsional)
 
-**8. Scheduled job `Tidak_Hadir`** ⬜
-- ⬜ Tandai santri yang tidak presensi setelah window berakhir
-- ⬜ Status `Izin` jika ada izin disetujui
-- ⬜ Hanya Mahasantri aktif
+**8. Scheduled job `Tidak_Hadir`** ✅
+- ✅ Cron `@nestjs/schedule` (`* * * * *`, Asia/Jakarta): proses jadwal yang `waktu_akhir_presensi`-nya sudah lewat, tanggal WIB hari ini; cache in-memory per (jadwal, tanggal), gagal → retry menit berikutnya
+- ✅ Status `Izin` jika ada izin Disetujui pada tanggal itu, selainnya `Tidak_Hadir`; izin Pending/Ditolak dianggap tidak ada
+- ✅ Hanya Mahasantri aktif; idempoten via `createMany(skipDuplicates)` + `@@unique` — baris Hadir tidak ditimpa
+- ✅ Pemicu manual Admin `POST /v1/admin/jobs/tandai-tidak-hadir` (`{ tanggal?, id_jadwal? }`, jumlah per status)
+- ✅ Kolom tanpa lokasi: keputusan desain **opsi A** — `id_masjid` masjid utama (deterministik), koordinat 0,0, `is_manual = false`; baris otomatis dikenali dari `status_presensi` (tanpa ubah schema)
+- ✅ Fungsi murni `tentukanAbsensi` + 21 unit test (5 skenario status, idempoten, isolasi error per jadwal dan per baris, fallback P2002)
+- ✅ Tes manual 14 skenario (cron otomatis, backfill, idempoten, validasi, RBAC, verifikasi DB tanpa duplikat)
 
 **9. Monitoring Musyrif dan grafik** ⬜
 - ⬜ Monitoring presensi santri binaan
@@ -95,15 +99,14 @@ Tahap 1 sampai 5 dan tahap 7 (izin, tanpa upload lampiran) selesai (setup dasar,
 
 1. Tahap 6 riwayat dan ringkasan
 2. Tahap 7 lampiran izin (MinIO) — bagian izin sudah selesai
-3. Tahap 8 scheduled job
-4. Tahap 10 DSS dan EWS (sebelum 9, karena fitur unggulan project)
-5. Tahap 9 monitoring dan grafik Musyrif
-6. Tahap 11 activity log (wajib untuk laporan, ketentuan audit trail)
-7. Tahap 12 rekap dan grafik Admin
-8. Tahap 13 testing (unit test inti sudah dimulai di tahap 5)
-9. Tahap 14 Docker aplikasi
+3. Tahap 10 DSS dan EWS (sebelum 9, karena fitur unggulan project)
+4. Tahap 9 monitoring dan grafik Musyrif
+5. Tahap 11 activity log (wajib untuk laporan, ketentuan audit trail)
+6. Tahap 12 rekap dan grafik Admin
+7. Tahap 13 testing (unit test inti sudah dimulai di tahap 5)
+8. Tahap 14 Docker aplikasi
 
-Jika waktu terbatas, potong dari bawah. Yang wajib: tahap 6, 8, 10, 11 (izin sudah selesai; lampiran MinIO boleh menyusul). Tahap 9 dan 12 cukup satu endpoint grafik per role. Tahap 13 cukup unit test inti. Tahap 14 paling akhir.
+Jika waktu terbatas, potong dari bawah. Yang wajib: tahap 6, 10, 11 (izin dan scheduled job sudah selesai; lampiran MinIO boleh menyusul). Tahap 9 dan 12 cukup satu endpoint grafik per role. Tahap 13 cukup unit test inti. Tahap 14 paling akhir.
 
 Sebelum tahap 13, bereskan backlog P2 no. 10 (sisa mengganti e2e bawaan).
 
@@ -147,3 +150,5 @@ Sebelum tahap 13, bereskan backlog P2 no. 10 (sisa mengganti e2e bawaan).
 - [x] Sinkron dokumen
 - [x] Tahap 4 master data Admin
 - [x] Tahap 5 presensi (Haversine, window time, anti-fake GPS; 16 unit test + 14 tes manual)
+- [x] Tahap 7 izin (state machine Pending → Disetujui/Ditolak aman race; 24 unit test + 20 tes manual)
+- [x] Tahap 8 scheduled job `Tidak_Hadir` (cron + pemicu manual Admin, opsi A masjid utama + koordinat 0,0; 21 unit test + 14 tes manual)

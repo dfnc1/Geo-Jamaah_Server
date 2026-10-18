@@ -290,6 +290,7 @@ Base path: `/v1` | Swagger UI: `/docs`
 | `GET` | `/v1/izin/saya` | Mahasantri | Daftar izin milik sendiri (terbaru dulu) |
 | `GET` | `/v1/musyrif/izin?status=` | Musyrif | Daftar izin santri binaan (+ `nama_mahasantri`) |
 | `PATCH` | `/v1/musyrif/izin/:id_izin/verify` | Musyrif | Verifikasi Disetujui/Ditolak (state machine anti-race) |
+| `POST` | `/v1/admin/jobs/tandai-tidak-hadir` | Admin | Pemicu manual job Tidak_Hadir/Izin (BR-05; cron juga jalan otomatis) |
 
 **Rencana (belum diimplementasikan):**
 
@@ -364,7 +365,7 @@ Proyek ini menggunakan [Conventional Commits](https://www.conventionalcommits.or
 | Modul Presensi (Geofencing) | ✅ Selesai | `POST /v1/presensi`: Haversine, window time jam server WIB, anti-fake GPS, cegah double presensi (P2002 → 409), 16 unit test |
 | Riwayat & ringkasan hari ini | ⏳ Belum Dimulai | Tahap 6 |
 | Modul Izin & lampiran | 🟡 Sebagian | Tahap 7: izin selesai (ajukan, daftar, filter, verifikasi Musyrif pembina dengan state machine aman race; 24 unit test). Upload lampiran MinIO menyusul |
-| Scheduled job `Tidak_Hadir` | ⏳ Belum Dimulai | Tahap 8 |
+| Scheduled job `Tidak_Hadir` | ✅ Selesai | Cron `@nestjs/schedule` tiap menit (Asia/Jakarta) + pemicu manual Admin; izin Disetujui → status `Izin`; idempoten (skipDuplicates, Hadir tidak ditimpa); baris otomatis: masjid utama + koordinat 0,0; 21 unit test |
 | Monitoring Musyrif & grafik | ⏳ Belum Dimulai | Tahap 9 |
 | DSS & EWS | ⏳ Belum Dimulai | Tahap 10 |
 | Activity log | ⏳ Belum Dimulai | Tahap 11 |

@@ -244,6 +244,26 @@ Kirim token di header: `Authorization: Bearer <access_token>`.
 
 ---
 
+## ✅ POST /v1/admin/jobs/tandai-tidak-hadir
+- Akses: Admin (`@Roles(Role.Admin)`). Pemicu manual untuk demo/backfill job penandaan otomatis (BR-05). Job yang sama juga berjalan **otomatis** via cron `@nestjs/schedule` (`* * * * *`, zona Asia/Jakarta): setiap menit, semua JadwalSholat yang `waktu_akhir_presensi`-nya sudah lewat diproses untuk tanggal WIB hari ini — frontend tidak perlu memicu apa pun.
+- Body (semua opsional):
+  ```json
+  { "tanggal": "2026-10-17", "id_jadwal": "uuid" }
+  ```
+  - `tanggal`: format ketat `YYYY-MM-DD` + tanggal kalender valid; default hari ini WIB; **tidak boleh melebihi hari ini** (400 `ERR_VALIDATION`). Tanggal lampau = backfill (semua jadwal diproses).
+  - `id_jadwal`: proses satu jadwal saja; default semua jadwal yang `waktu_akhir_presensi`-nya sudah lewat. Tidak ada → 404 `ERR_JADWAL_NOT_FOUND`; jadwal hari ini yang akhirnya **belum** lewat → 400 `ERR_TIME_WINDOW_INVALID` (tidak pernah menandai santri yang masih bisa presensi).
+- Yang diproses: Mahasantri `status_aktif = true` yang **belum punya baris presensi** pada (jadwal, tanggal) — apa pun status barisnya. Baris `Hadir`/`Manual` yang sudah ada **tidak pernah ditimpa atau diduplikat** (insert `skipDuplicates` memanfaatkan `@@unique([nim, id_jadwal, tanggal])`); idempoten — run kedua mengembalikan nol.
+- Status yang dibuat: `Izin` bila ada Izin `Disetujui` dengan `tanggal_izin` = tanggal itu; selainnya `Tidak_Hadir` (izin `Pending`/`Ditolak` dianggap tidak ada izin). Santri nonaktif dilewati.
+- **Konvensi baris otomatis** (keputusan desain tahap 8): baris tidak memiliki lokasi asli, jadi dibuat dengan `id_masjid` **masjid utama** (pemenang deterministik: `nama_masjid` lalu `id_masjid` menaik), `latitude_user = 0`, `longitude_user = 0`, `akurasi_meter = NULL`, `is_mock_location = false`, `is_manual = false`. Baris otomatis dikenali dari `status_presensi` (`Tidak_Hadir`/`Izin`) — **jangan menampilkan koordinatnya** (0,0 bukan lokasi).
+- 200:
+  ```json
+  { "tanggal": "2026-10-17", "id_jadwal": null, "dibuat": { "Tidak_Hadir": 5, "Izin": 5 }, "total_dibuat": 10 }
+  ```
+  - `id_jadwal` = UUID yang diproses atau `null` (semua jadwal). `dibuat` = jumlah baris **yang berhasil dibuat** per status.
+- Error: 400 (`ERR_VALIDATION`, `ERR_TIME_WINDOW_INVALID`), 401, 403, 404 (`ERR_JADWAL_NOT_FOUND` / `ERR_MASJID_NOT_FOUND` bila tidak ada data masjid — job membutuhkan masjid utama).
+
+---
+
 # Endpoint Rencana (📋 Belum Diimplementasikan)
 
 Daftar fitur dari PRD yang belum punya kode. Jangan dipanggil frontend sebelum kode ada. Perlu diputuskan detailnya sebelum tahap terkait dikerjakan.
