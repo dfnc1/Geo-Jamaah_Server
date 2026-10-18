@@ -9,9 +9,11 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { JwtAuthGuard } from '@src/auth/guard/jwt-auth.guard';
 import { RolesGuard } from '@src/auth/guard/roles.guard';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { JobsModule } from './jobs/jobs.module';
 import { DssModule } from './dss/dss.module';
+import { ActivityLogModule } from './activity-log/activity-log.module';
+import { ActivityLogInterceptor } from './activity-log/activity-log.interceptor';
 import { parseThrottleLimit } from './common/throttle-limit';
 
 @Module({
@@ -47,11 +49,17 @@ import { parseThrottleLimit } from './common/throttle-limit';
     IzinModule,
     JobsModule,
     DssModule,
+    ActivityLogModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
+    // Interceptor global (BR-11): membaca metadata @Audit via Reflector.
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: ActivityLogInterceptor,
+    },
   ],
 })
 export class AppModule {}

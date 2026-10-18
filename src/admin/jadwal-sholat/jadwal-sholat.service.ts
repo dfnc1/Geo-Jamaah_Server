@@ -16,7 +16,8 @@ export class JadwalSholatService {
   async create(dto: CreateJadwalSholatDto): Promise<JadwalSholat> {
     assertPresensiWindowValid(dto.waktu_mulai_presensi, dto.waktu_akhir_presensi);
 
-    // TODO(tahap-11): catat aktivitas "Membuat jadwal sholat <nama>" ke activity_logs.
+    // Activity log dicatat oleh interceptor global (ActivityLogInterceptor)
+    // yang membaca metadata @Audit('Jadwal', 'membuat-jadwal') pada controller.
     return this.prismaService.jadwalSholat.create({ data: dto });
   }
 
@@ -48,7 +49,8 @@ export class JadwalSholatService {
       dto.waktu_akhir_presensi ?? existing.waktu_akhir_presensi,
     );
 
-    // TODO(tahap-11): catat aktivitas "Mengubah jadwal sholat <nama>" ke activity_logs.
+    // Activity log dicatat oleh interceptor global (ActivityLogInterceptor)
+    // yang membaca metadata @Audit('Jadwal', 'mengubah-jadwal') pada controller.
     return this.prismaService.jadwalSholat.update({
       where: { id_jadwal: idJadwal },
       data: dto,
@@ -69,7 +71,8 @@ export class JadwalSholatService {
       });
     }
 
-    // TODO(tahap-11): catat aktivitas "Menghapus jadwal sholat <nama>" ke activity_logs.
+    // Activity log dicatat oleh interceptor global (ActivityLogInterceptor)
+    // yang membaca metadata @Audit('Jadwal', 'menghapus-jadwal') pada controller.
     await this.prismaService.jadwalSholat.delete({
       where: { id_jadwal: idJadwal },
     });

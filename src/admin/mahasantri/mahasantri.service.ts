@@ -32,7 +32,8 @@ export class MahasantriService {
       });
     }
 
-    // TODO(tahap-11): catat aktivitas "Reset device Mahasantri <nim>" ke activity_logs.
+    // Activity log dicatat oleh interceptor global (ActivityLogInterceptor)
+    // yang membaca metadata @Audit('Mahasantri', 'reset-device') pada controller.
     const updated = await this.prismaService.pengguna.update({
       where: { id_pengguna: mahasantri.pengguna.id_pengguna },
       data: { device_id: null },

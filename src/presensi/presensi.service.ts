@@ -132,10 +132,12 @@ export class PresensiService {
       throw e;
     }
 
-    // TODO(tahap-11): catat aktivitas "Presensi <jadwal> jam <waktu>" ke activity_logs.
+    // Activity log dicatat oleh interceptor global (ActivityLogInterceptor)
+    // yang membaca metadata @Audit('Presensi', 'presensi') pada controller.
 
     return {
       status_presensi: StatusPresensi.Hadir,
+      nama_sholat: jadwal.nama_sholat,
       // Dibulatkan 2 desimal hanya untuk response; nilai tidak disimpan
       // (model Presensi tidak punya kolom jarak).
       jarak_meter: Math.round(jarakMeter * 100) / 100,

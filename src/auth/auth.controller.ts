@@ -18,6 +18,7 @@ import {
   MusyrifProfileDto,
 } from './dto/login.dto';
 import { Public } from '@src/auth/decorators/public.decorator';
+import { Audit } from '@src/activity-log/audit.decorator';
 import { parseThrottleLimit } from '@src/common/throttle-limit';
 
 /** Batas login per 60 detik per IP, dari env (default 20). */
@@ -62,6 +63,7 @@ export class AuthController {
   @Post('/login')
   @Public()
   @Throttle({ default: { limit: LOGIN_RATE_LIMIT, ttl: 60_000 } })
+  @Audit('Auth', 'login-berhasil', { catatGagal: true })
   @ApiOperation({
     summary: 'Login pengguna',
     description:

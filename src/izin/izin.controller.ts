@@ -13,6 +13,7 @@ import {
 } from '@nestjs/swagger';
 import { Role } from '@generated/prisma/enums';
 import { Roles } from '@src/auth/decorators/roles.decorator';
+import { Audit } from '@src/activity-log/audit.decorator';
 import { IzinService } from './izin.service';
 import { CreateIzinDto } from './dto/create-izin.dto';
 import { IzinDto } from './dto/izin.dto';
@@ -40,6 +41,7 @@ export class IzinController {
   constructor(private readonly izinService: IzinService) {}
 
   @Post()
+  @Audit('Izin', 'ajukan-izin')
   @ApiOperation({
     summary: 'Ajukan izin',
     description:

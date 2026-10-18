@@ -11,6 +11,12 @@ export class PresensiDto {
   status_presensi!: StatusPresensi;
 
   @ApiProperty({
+    example: 'Subuh',
+    description: 'Nama jadwal sholat yang dipresensi (dari id_jadwal)',
+  })
+  nama_sholat!: string;
+
+  @ApiProperty({
     example: 23.41,
     description:
       'Jarak Haversine dari posisi user ke masjid dalam meter, dibulatkan 2 desimal. Tidak disimpan ke database.',

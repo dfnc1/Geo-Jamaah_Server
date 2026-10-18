@@ -13,7 +13,8 @@ export class MasjidService {
   constructor(private readonly prismaService: PrismaService) {}
 
   async create(dto: CreateMasjidDto): Promise<Masjid> {
-    // TODO(tahap-11): catat aktivitas "Membuat masjid <nama>" ke activity_logs.
+    // Activity log dicatat oleh interceptor global (ActivityLogInterceptor)
+    // yang membaca metadata @Audit('Masjid', 'membuat-masjid') pada controller.
     return this.prismaService.masjid.create({ data: dto });
   }
 
@@ -35,7 +36,8 @@ export class MasjidService {
   async update(idMasjid: string, dto: UpdateMasjidDto): Promise<Masjid> {
     await this.findOne(idMasjid);
 
-    // TODO(tahap-11): catat aktivitas "Mengubah data masjid <nama>" (mis. radius toleransi) ke activity_logs.
+    // Activity log dicatat oleh interceptor global (ActivityLogInterceptor)
+    // yang membaca metadata @Audit('Masjid', 'mengubah-masjid') pada controller.
     return this.prismaService.masjid.update({
       where: { id_masjid: idMasjid },
       data: dto,
@@ -56,7 +58,8 @@ export class MasjidService {
       });
     }
 
-    // TODO(tahap-11): catat aktivitas "Menghapus masjid <nama>" ke activity_logs.
+    // Activity log dicatat oleh interceptor global (ActivityLogInterceptor)
+    // yang membaca metadata @Audit('Masjid', 'menghapus-masjid') pada controller.
     await this.prismaService.masjid.delete({ where: { id_masjid: idMasjid } });
     return { id_masjid: idMasjid };
   }

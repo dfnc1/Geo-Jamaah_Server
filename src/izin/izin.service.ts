@@ -54,7 +54,9 @@ export class IzinService {
       },
     });
 
-    // TODO(tahap-11): catat aktivitas "Mengajukan izin <jenis> tanggal <tanggal>" ke activity_logs.
+    // Activity log dicatat oleh interceptor global (ActivityLogInterceptor)
+    // yang membaca metadata @Audit('Izin', 'ajukan-izin') pada controller.
+
     return this.toIzinDto(izin);
   }
 
@@ -173,7 +175,9 @@ export class IzinService {
       }
     });
 
-    // TODO(tahap-11): catat aktivitas "Memverifikasi izin <nim> menjadi <status>" ke activity_logs.
+    // Activity log dicatat oleh interceptor global (ActivityLogInterceptor)
+    // yang membaca metadata @Audit('Izin', 'verifikasi-izin') pada controller.
+
     return {
       ...this.toIzinDto({ ...izin, status_persetujuan: dto.status_persetujuan }),
       nama_mahasantri: izin.mahasantri.nama,
