@@ -62,6 +62,15 @@ export class HttpExceptionFilter implements ExceptionFilter {
       }
     }
 
+    // ThrottlerException memakai nama error internal "ThrottlerException";
+    // samakan dengan kontrak error ERR_TOO_MANY_REQUESTS.
+    if (statusCode === HttpStatus.TOO_MANY_REQUESTS) {
+      error = 'ERR_TOO_MANY_REQUESTS';
+      if (!message || message.startsWith('ThrottlerException')) {
+        message = 'Terlalu banyak permintaan, coba lagi nanti';
+      }
+    }
+
     const payload: ApiErrorResponse = {
       success: false,
       statusCode,

@@ -29,10 +29,20 @@ type UserWithProfil = Prisma.PenggunaGetPayload<{
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
 
+  /**
+   * Hash palsu untuk menyamakan waktu respons saat username tidak ditemukan.
+   * Dibuat sekali di awal (cost factor sama dengan hash di seed) supaya
+   * bcrypt.compare tetap dijalankan dan waktu respons tidak membocorkan
+   * keberadaan sebuah username.
+   */
+  private readonly dummyHash: Promise<string>;
+
   constructor(
     private jwtService: JwtService,
     private prismaService: PrismaService,
-  ) {}
+  ) {
+    this.dummyHash = bcrypt.hash('dummy-password-tidak-dipakai', 12);
+  }
 
   async validateUser(
     username: string,
@@ -43,7 +53,12 @@ export class AuthService {
       select: { id_pengguna: true, password: true },
     });
 
-    if (!credential) return null;
+    if (!credential) {
+      // Username tidak ada: tetap habiskan waktu bcrypt agar respons
+      // tidak membocorkan keberadaan username.
+      await bcrypt.compare(pass, await this.dummyHash);
+      return null;
+    }
 
     const idPasswordValid = await bcrypt.compare(pass, credential.password);
     if (!idPasswordValid) return null;
