@@ -37,7 +37,9 @@ Legenda: 🟢 **Siap** = sudah ada di kode dan teruji. ⚪ **Rencana** = belum d
 | `GET` | `/v1/musyrif/dss/santri-kritis` | Musyrif | ✅ Selesai (tahap 10) |
 | `GET` | `/v1/musyrif/presensi/monitoring` | Musyrif | ✅ Selesai (tahap 9) |
 | `GET` | `/v1/admin/activity-logs` | Admin | ✅ Selesai (tahap 11) |
-| `GET` | `/v1/admin/rekap` | Admin | ⚪ Rencana (tahap 12) |
+| `GET` | `/v1/musyrif/dashboard/tren-kehadiran?hari=7` | Musyrif | ✅ Selesai (tahap 12) |
+| `GET` | `/v1/admin/dashboard/tren-kehadiran?hari=7` | Admin | ✅ Selesai (tahap 12) |
+| `GET` | `/v1/admin/rekap` | Admin | ✅ Selesai (tahap 12) |
 
 ## Format Respons
 
@@ -183,3 +185,22 @@ Semua endpoint `/v1/admin/*` hanya untuk role Admin (selain itu 403 `ERR_FORBIDD
 - Teks `aktivitas` sudah disusun server, maksimum 500 karakter — **tampilkan apa adanya** (contoh: `Presensi Subuh berhasil, jarak 23 m`, `Memverifikasi izin 24050505050 menjadi Disetujui`, `Pemicu manual job tandai-tidak-hadir 2026-10-18: Tidak_Hadir 5, Izin 1 (total 6)`). Untuk UPDATE/DELETE, teks memakai `id`, bukan nama (lihat API_CONTRACT).
 - Aktivitas **tercatat otomatis** untuk: login (sukses **dan** gagal), presensi, pengajuan/verifikasi izin, Masjid & Jadwal buat/ubah/hapus, reset device, dan pemicu job manual. Aksi baru di luar daftar itu **tidak otomatis tercatat** — harus ditambahkan `@Audit` di route.
 - Tidak pernah ada nilai password/token/`device_id` di kolom mana pun — aman dirender langsung.
+
+## Catatan Dashboard & Rekap (tahap 12)
+
+### Tren kehadiran (`GET /v1/musyrif/dashboard/tren-kehadiran?hari=7` dan `/v1/admin/dashboard/tren-kehadiran?hari=7`)
+
+- Query `hari` opsional, default 7, maksimal 30. Rentang = `hari` terakhir termasuk hari ini (WIB).
+- Respons **bukan array**: baca `data.data` (array harian), `data.hari`, `data.tanggal_mulai`, `data.tanggal_akhir`.
+- Setiap hari dalam rentang selalu muncul, termasuk hari tanpa data (semua status 0, `persen_hadir` null).
+- `persen_hadir = hadir / (hadir + tidak_hadir) × 100`, satu desimal. `Izin` dikecualikan dari penyebut, `Manual` dihitung hadir. `null` bila penyebut 0.
+- Endpoint Musyrif hanya menampilkan santri **binaan aktif**; endpoint Admin menampilkan **semua santri aktif**.
+- Urutan data: tanggal menaik.
+
+### Rekap admin (`GET /v1/admin/rekap`)
+
+- Hanya Admin. Tidak ada query parameter.
+- `jumlah_santri_aktif` = jumlah Mahasantri dengan `status_aktif = true`.
+- `presensi` = jumlah baris presensi per status dalam periode rekap (`REKAP_PERIODE_HARI`, default 30 hari).
+- `izin` = jumlah izin per status persetujuan (`Pending`, `Disetujui`, `Ditolak`).
+- `jumlah_santri_kritis` = jumlah santri berkategori KRITIS menurut fungsi DSS yang sama dengan `GET /v1/musyrif/dss/santri-kritis`.

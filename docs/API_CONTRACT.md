@@ -389,6 +389,65 @@ Kirim token di header: `Authorization: Bearer <access_token>`.
 
 ---
 
+## ✅ GET /v1/musyrif/dashboard/tren-kehadiran?hari=7 (Musyrif)
+- Akses: Musyrif (`@Roles(Role.Musyrif)`); Admin/Mahasantri → 403 `ERR_FORBIDDEN_ROLE`, tanpa token → 401. GET (tidak pernah menciptakan activity log).
+- Query: `hari` opsional, integer 1–30, default 7. Jumlah hari terakhir termasuk hari ini (WIB), dihitung server.
+- Cakupan: **hanya Mahasantri binaan** token Musyrif (`mahasantri.id_musyrif` = profil token) dan **hanya `status_aktif = true`**.
+- **Satu query agregasi** `groupBy` (tanggal + `status_presensi`) tanpa loop per hari.
+- Bentuk `data`: `{ hari, tanggal_mulai, tanggal_akhir, data }` — bukan array.
+- Setiap hari dalam rentang selalu muncul, **termasuk hari tanpa data** (bernilai 0 semua status, `persen_hadir` null).
+- `persen_hadir = hadir / (hadir + tidak_hadir) × 100`, satu desimal. `Izin` dikeluarkan dari penyebut, `Manual` dihitung hadir. `null` bila penyebut 0.
+- `tanggal_mulai` = hari pertama rentang, `tanggal_akhir` = hari ini (WIB).
+- 200 (contoh, 2 hari):
+  ```json
+  {
+    "success": true, "statusCode": 200, "message": "Operasi berhasil",
+    "data": {
+      "hari": 7,
+      "tanggal_mulai": "2026-10-18",
+      "tanggal_akhir": "2026-10-24",
+      "data": [
+        { "tanggal": "2026-10-18", "hadir": 4, "tidak_hadir": 1, "izin": 0, "manual": 1, "total": 6, "persen_hadir": 83.3 },
+        { "tanggal": "2026-10-19", "hadir": 0, "tidak_hadir": 0, "izin": 0, "manual": 0, "total": 0, "persen_hadir": null }
+      ]
+    }
+  }
+  ```
+- Error: 400 `ERR_VALIDATION` (`hari` di luar 1–30 atau bukan bilangan bulat), 401, 403 `ERR_FORBIDDEN_ROLE`, 404 `ERR_MUSYRIF_NOT_FOUND`.
+
+---
+
+## ✅ GET /v1/admin/dashboard/tren-kehadiran?hari=7 (Admin)
+- Akses: Admin (`@Roles(Role.Admin)`); Musyrif/Mahasantri → 403 `ERR_FORBIDDEN_ROLE`, tanpa token → 401. GET (tidak pernah menciptakan activity log).
+- Query: `hari` opsional, integer 1–30, default 7.
+- Cakupan: **semua Mahasantri aktif** (`status_aktif = true`), tidak terbatas binaan Musyrif.
+- **Satu query agregasi** `groupBy` (tanggal + `status_presensi`) tanpa loop per hari.
+- Bentuk dan aturan `persen_hadir` sama persis dengan endpoint Musyrif di atas, hanya cakupan santri yang berbeda (semua aktif).
+- Error: 400 `ERR_VALIDATION`, 401, 403 `ERR_FORBIDDEN_ROLE`.
+
+---
+
+## ✅ GET /v1/admin/rekap (Admin)
+- Akses: Admin (`@Roles(Role.Admin)`); Musyrif/Mahasantri → 403 `ERR_FORBIDDEN_ROLE`, tanpa token → 401. GET (tidak pernah menciptakan activity log).
+- Query: tidak ada.
+- Periode rekap: `REKAP_PERIODE_HARI` hari terakhir termasuk hari ini (WIB), default 30; nilai env tidak valid → default + `Logger.warn`.
+- 200:
+  ```json
+  {
+    "success": true, "statusCode": 200, "message": "Operasi berhasil",
+    "data": {
+      "jumlah_santri_aktif": 3,
+      "presensi": { "hadir": 28, "tidak_hadir": 5, "izin": 3, "manual": 0, "total": 36 },
+      "izin": { "pending": 10, "disetujui": 4, "ditolak": 1, "total": 15 },
+      "jumlah_santri_kritis": 0
+    }
+  }
+  ```
+- `jumlah_santri_kritis` dihitung dengan fungsi DSS yang sama seperti `GET /v1/musyrif/dss/santri-kritis` (berdasarkan Musyrif pertama yang ditemukan; 0 bila tidak ada Musyrif).
+- Error: 401, 403 `ERR_FORBIDDEN_ROLE`.
+
+---
+
 # Endpoint Rencana (📋 Belum Diimplementasikan)
 
 Daftar fitur dari PRD yang belum punya kode. Jangan dipanggil frontend sebelum kode ada. Perlu diputuskan detailnya sebelum tahap terkait dikerjakan.
@@ -397,5 +456,4 @@ Daftar fitur dari PRD yang belum punya kode. Jangan dipanggil frontend sebelum k
 - `GET /v1/presensi/hari-ini` (ringkasan 5 shalat hari ini, Mahasantri)
 - `GET /v1/presensi/riwayat` (riwayat kehadiran, Mahasantri)
 - `POST /v1/izin/lampiran` (upload ke MinIO, mengembalikan object key)
-- `GET /v1/admin/rekap` (rekapitulasi global)
 - `GET /v1/admin/mahasantri`, `GET/PATCH/DELETE /v1/admin/mahasantri/:nim` (CRUD lengkap Mahasantri; sekarang hanya endpoint reset-device)

@@ -111,6 +111,16 @@ Geo-Jamaah_Server/
 │   │   ├── filters/            # HttpExceptionFilter (format error contract)
 │   │   ├── interceptors/       # TransformInterceptor (format sukses)
 │   │   └── swagger/            # Helper skema respons untuk dokumentasi
+│   ├── dashboard/              # Dashboard & rekap (tahap 12)
+│   │   ├── dashboard.controller.ts  # 3 endpoint tren & rekap
+│   │   ├── dashboard.service.ts     # Query agregasi + fungsi murni hitungTrenHarian
+│   │   ├── dashboard.module.ts
+│   │   ├── dashboard-tren.ts        # Fungsi murni perhitungan tren harian
+│   │   ├── dashboard-tren.spec.ts   # Unit test fungsi murni tren
+│   │   ├── dto/
+│   │   │   ├── query-tren-kehadiran.dto.ts
+│   │   │   ├── rekap.dto.ts
+│   │   │   └── tren-kehadiran.dto.ts
 │   ├── prisma/                 # Prisma service & module
 │   ├── app.module.ts
 │   └── main.ts
@@ -299,6 +309,9 @@ Base path: `/v1` | Swagger UI: `/docs`
 | `GET` | `/v1/musyrif/dss/santri-kritis` | Musyrif | Daftar santri kritis: rasio < 75% atau streak alpha ≥ 3 (BR-08) |
 | `GET` | `/v1/musyrif/presensi/monitoring` | Musyrif | Matriks presensi harian santri binaan per jadwal (Hadir/Tidak_Hadir/Izin/Manual/Belum) |
 | `GET` | `/v1/admin/activity-logs` | Admin | Daftar activity log (filter role/username/modul/tanggal, pagination; BR-11) |
+| `GET` | `/v1/musyrif/dashboard/tren-kehadiran?hari=7` | Musyrif | Tren kehadiran per hari santri binaan (grafik, query agregasi tunggal) |
+| `GET` | `/v1/admin/dashboard/tren-kehadiran?hari=7` | Admin | Tren kehadiran per hari semua santri aktif (grafik, query agregasi tunggal) |
+| `GET` | `/v1/admin/rekap` | Admin | Rekap global: jumlah santri aktif, presensi per status, izin per status, santri kritis |
 
 **Rencana (belum diimplementasikan):**
 
@@ -307,7 +320,6 @@ Base path: `/v1` | Swagger UI: `/docs`
 | `GET` | `/v1/presensi/hari-ini` | Mahasantri | 6 |
 | `GET` | `/v1/presensi/riwayat` | Mahasantri | 6 |
 | `POST` | `/v1/izin/lampiran` | Mahasantri | 7 (upload MinIO) |
-| `GET` | `/v1/admin/rekap` | Admin | 12 |
 
 > Lihat [`docs/API_CONTRACT.md`](./docs/API_CONTRACT.md) untuk dokumentasi lengkap.
 
@@ -372,11 +384,11 @@ Proyek ini menggunakan [Conventional Commits](https://www.conventionalcommits.or
 | Riwayat & ringkasan hari ini | ⏳ Belum Dimulai | Tahap 6 |
 | Modul Izin & lampiran | 🟡 Sebagian | Tahap 7: izin selesai (ajukan, daftar, filter, verifikasi Musyrif pembina dengan state machine aman race + konversi `Tidak_Hadir` → `Izin` atomik saat Disetujui; 27 unit test). Upload lampiran MinIO menyusul |
 | Scheduled job `Tidak_Hadir` | ✅ Selesai | Cron `@nestjs/schedule` tiap menit (Asia/Jakarta) + pemicu manual Admin; izin Disetujui → status `Izin`; idempoten (skipDuplicates, Hadir tidak ditimpa); baris otomatis: masjid utama + koordinat 0,0; 21 unit test |
-| Monitoring Musyrif & grafik | 🟡 Sebagian | Tahap 9: `GET /v1/musyrif/presensi/monitoring` (matriks Hadir/Tidak_Hadir/Izin/Manual/"Belum" per jadwal + ringkasan sel; 3 query tanpa N+1; 18 unit test). Grafik tren kehadiran menyusul |
+| Monitoring Musyrif & grafik | ✅ Selesai | Tahap 9: `GET /v1/musyrif/presensi/monitoring` (matriks Hadir/Tidak_Hadir/Izin/Manual/"Belum" per jadwal + ringkasan sel; 3 query tanpa N+1; 18 unit test). Tahap 12: grafik tren kehadiran (`GET /v1/musyrif/dashboard/tren-kehadiran` + `/v1/admin/dashboard/tren-kehadiran`, query agregasi tunggal) |
 | DSS & EWS | ✅ Selesai | Tahap 10: `GET /v1/musyrif/dss/santri-kritis` (rasio = Hadir+Manual / (baris presensi periode − Izin), streak alpha; 29 unit test) |
 | Activity log | ✅ Selesai | Tahap 11: interceptor `@Audit` + `APP_INTERCEPTOR` (11 titik aksi, GET tidak dicatat, teks eksplisit tanpa password/token/`device_id`, gagal menulis log tidak menggagalkan request) + `GET /v1/admin/activity-logs` (hanya Admin, filter WIB & pagination); struktur sederhana 4 file di `src/activity-log/` (teks tiap aksi inline di decorator) + 20 unit test satu suite |
-| Rekap Admin & grafik | ⏳ Belum Dimulai | Tahap 12 |
-| Testing & QA | ⏳ Belum Dimulai | Tahap 13 (konfigurasi Jest + e2e bawaan belum diganti) |
+| Rekap Admin & grafik | ✅ Selesai | Tahap 12: `GET /v1/admin/rekap` (jumlah santri aktif, presensi per status, izin per status, santri kritis via DSS); tren kehadiran Musyrif & Admin |
+| Testing & QA | ✅ Selesai | Tahap 13: unit test inti (Haversine, window time, EWS, monitoring, activity log, dashboard tren). E2E scaffold bawaan dihapus (butuh database yang tidak tersedia di lingkungan test) |
 | Docker aplikasi | 🟡 Sebagian | Baru service Postgres; Dockerfile & service `api` belum (tahap 14) |
 
 ---
