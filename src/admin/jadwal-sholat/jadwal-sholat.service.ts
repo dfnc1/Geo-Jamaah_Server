@@ -17,7 +17,7 @@ export class JadwalSholatService {
     assertPresensiWindowValid(dto.waktu_mulai_presensi, dto.waktu_akhir_presensi);
 
     // Activity log dicatat oleh interceptor global (ActivityLogInterceptor)
-    // yang membaca metadata @Audit('Jadwal', 'membuat-jadwal') pada controller.
+    // yang membaca metadata @Audit('Jadwal', <fungsi teks>) pada controller.
     return this.prismaService.jadwalSholat.create({ data: dto });
   }
 
@@ -50,7 +50,7 @@ export class JadwalSholatService {
     );
 
     // Activity log dicatat oleh interceptor global (ActivityLogInterceptor)
-    // yang membaca metadata @Audit('Jadwal', 'mengubah-jadwal') pada controller.
+    // yang membaca metadata @Audit('Jadwal', <fungsi teks>) pada controller.
     return this.prismaService.jadwalSholat.update({
       where: { id_jadwal: idJadwal },
       data: dto,
@@ -72,7 +72,7 @@ export class JadwalSholatService {
     }
 
     // Activity log dicatat oleh interceptor global (ActivityLogInterceptor)
-    // yang membaca metadata @Audit('Jadwal', 'menghapus-jadwal') pada controller.
+    // yang membaca metadata @Audit('Jadwal', <fungsi teks>) pada controller.
     await this.prismaService.jadwalSholat.delete({
       where: { id_jadwal: idJadwal },
     });

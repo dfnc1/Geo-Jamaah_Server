@@ -25,7 +25,7 @@ import {
 } from '@nestjs/swagger';
 import { Role } from '@generated/prisma/enums';
 import { Roles } from '@src/auth/decorators/roles.decorator';
-import { Audit } from '@src/activity-log/audit.decorator';
+import { Audit } from '@src/activity-log/activity-log.interceptor';
 import { MasjidService } from './masjid.service';
 import { CreateMasjidDto } from './dto/create-masjid.dto';
 import { UpdateMasjidDto } from './dto/update-masjid.dto';
@@ -49,7 +49,7 @@ export class MasjidController {
   constructor(private readonly masjidService: MasjidService) {}
 
   @Post()
-  @Audit('Masjid', 'membuat-masjid')
+  @Audit('Masjid', (data) => `Membuat masjid ${(data as MasjidDto).nama_masjid}`)
   @ApiOperation({
     summary: 'Tambah masjid',
     description:
@@ -104,7 +104,7 @@ export class MasjidController {
   }
 
   @Patch(':id_masjid')
-  @Audit('Masjid', 'mengubah-masjid')
+  @Audit('Masjid', (data) => `Mengubah masjid ${(data as MasjidDto).id_masjid}`)
   @ApiOperation({
     summary: 'Ubah data masjid',
     description:
@@ -135,7 +135,10 @@ export class MasjidController {
 
   @Delete(':id_masjid')
   @HttpCode(HttpStatus.OK)
-  @Audit('Masjid', 'menghapus-masjid')
+  @Audit(
+    'Masjid',
+    (data) => `Menghapus masjid ${(data as DeleteMasjidResponseDto).id_masjid}`,
+  )
   @ApiOperation({
     summary: 'Hapus masjid',
     description:

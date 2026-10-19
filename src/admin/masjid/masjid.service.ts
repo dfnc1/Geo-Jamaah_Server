@@ -14,7 +14,7 @@ export class MasjidService {
 
   async create(dto: CreateMasjidDto): Promise<Masjid> {
     // Activity log dicatat oleh interceptor global (ActivityLogInterceptor)
-    // yang membaca metadata @Audit('Masjid', 'membuat-masjid') pada controller.
+    // yang membaca metadata @Audit('Masjid', <fungsi teks>) pada controller.
     return this.prismaService.masjid.create({ data: dto });
   }
 
@@ -37,7 +37,7 @@ export class MasjidService {
     await this.findOne(idMasjid);
 
     // Activity log dicatat oleh interceptor global (ActivityLogInterceptor)
-    // yang membaca metadata @Audit('Masjid', 'mengubah-masjid') pada controller.
+    // yang membaca metadata @Audit('Masjid', <fungsi teks>) pada controller.
     return this.prismaService.masjid.update({
       where: { id_masjid: idMasjid },
       data: dto,
@@ -59,7 +59,7 @@ export class MasjidService {
     }
 
     // Activity log dicatat oleh interceptor global (ActivityLogInterceptor)
-    // yang membaca metadata @Audit('Masjid', 'menghapus-masjid') pada controller.
+    // yang membaca metadata @Audit('Masjid', <fungsi teks>) pada controller.
     await this.prismaService.masjid.delete({ where: { id_masjid: idMasjid } });
     return { id_masjid: idMasjid };
   }

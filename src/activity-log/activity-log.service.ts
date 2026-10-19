@@ -1,16 +1,49 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '@src/prisma/prisma.service';
 import { Prisma, Role } from '@generated/prisma/client';
-import { potongUsername, potongTeks } from './audit-teks';
-import { awalHariWib, akhirHariWib } from './hari-wib';
-import { QueryActivityLogsDto } from './dto/query-activity-logs.dto';
-import { ActivityLogsPageDto, ActivityLogDto } from './dto/activity-log.dto';
+// Type-only: DTO memang menetap di file controller (maksimal 4 file), dan
+// import type dijamin di-compile-time sehingga tidak memutar siklik runtime.
+import type {
+  QueryActivityLogsDto,
+  ActivityLogsPageDto,
+  ActivityLogDto,
+} from './activity-log.controller';
 
 export interface CatatAktivitasDto {
   username: string;
   role: Role;
   modul: string;
   aktivitas: string;
+}
+
+/** Batas praktis kolom: teks aktivitas maks 500 karakter. */
+const MAKS_AKTIVITAS = 500;
+
+/** Potong teks aktivitas maksimum 500 karakter (batas kolom praktis). */
+function potongTeks(teks: string): string {
+  return teks.length > MAKS_AKTIVITAS ? teks.slice(0, MAKS_AKTIVITAS) : teks;
+}
+
+/** Potong username maksimum 100 karakter (batas kolom VarChar(100)). */
+function potongUsername(username: string): string {
+  return username.length > 100 ? username.slice(0, 100) : username;
+}
+
+const MILIDETIK_PER_JAM = 3_600_000;
+
+/**
+ * Awal hari (`00:00:00.000` WIB = UTC+7, tanpa DST) dari tanggal
+ * `YYYY-MM-DD`, dikembalikan sebagai Date representasi instan UTC-nya
+ * (17:00 UTC hari sebelumnya). Dipakai untuk filter `from`/`to` activity
+ * log sebagai hari WIB penuh.
+ */
+function awalHariWib(tanggal: string): Date {
+  return new Date(`${tanggal}T00:00:00.000+07:00`);
+}
+
+/** Batas akhir hari `to` (dipakai sebagai `lt` eksklusif pada `created_at`). */
+function akhirHariWib(tanggal: string): Date {
+  return new Date(awalHariWib(tanggal).getTime() + 24 * MILIDETIK_PER_JAM - 1);
 }
 
 @Injectable()
@@ -28,8 +61,8 @@ export class ActivityLogService {
    * Kebijakan keamanan: fungsi ini hanya menerima `CatatAktivitasDto`
    * (username, role, modul, aktivitas). Password, token, dan field
    * sensitif lain TIDAK PERNAH diteruskan ke sini — teks aktivitas
-   * dibangun oleh fungsi murni `audit-teks.ts` yang hanya memilih field
-   * yang diizinkan secara eksplisit.
+   * dibangun oleh fungsi kecil pada decorator `@Audit` tiap endpoint,
+   * yang hanya memilih field eksplisit dari data respons.
    */
   catat(dto: CatatAktivitasDto): void {
     const data = {

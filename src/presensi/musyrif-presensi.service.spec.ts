@@ -117,9 +117,12 @@ describe('MusyrifPresensiService', () => {
   });
 
   it('400 ERR_VALIDATION untuk tanggal masa depan, sebelum ada query', async () => {
-    const besok = new Date();
-    besok.setDate(besok.getDate() + 1);
-    const besokTeks = besok.toISOString().slice(0, 10);
+    // Tanggal UTC proses + 2 hari dijamin melebihi hari ini WIB berapapun
+    // TZ environment (WIB = UTC+7, selisih tanggal maksimal 1 hari) — tidak
+    // flaky saat pergantian hari.
+    const besokTeks = new Date(Date.now() + 2 * 24 * 3_600_000)
+      .toISOString()
+      .slice(0, 10);
 
     await expect(
       service.monitoring('pengguna-1', { tanggal: besokTeks }),

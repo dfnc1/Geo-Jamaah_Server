@@ -18,7 +18,7 @@ import {
   MusyrifProfileDto,
 } from './dto/login.dto';
 import { Public } from '@src/auth/decorators/public.decorator';
-import { Audit } from '@src/activity-log/audit.decorator';
+import { Audit } from '@src/activity-log/activity-log.interceptor';
 import { parseThrottleLimit } from '@src/common/throttle-limit';
 
 /** Batas login per 60 detik per IP, dari env (default 20). */
@@ -63,7 +63,35 @@ export class AuthController {
   @Post('/login')
   @Public()
   @Throttle({ default: { limit: LOGIN_RATE_LIMIT, ttl: 60_000 } })
-  @Audit('Auth', 'login-berhasil', { catatGagal: true })
+  @Audit(
+    'Auth',
+    () => 'Login berhasil',
+    {
+      // Login satu-satunya aksi yang dicatat saat gagal.
+      catatGagal: true,
+      // Teks dari kode error whitelist `ERR_XXX` (bukan body mentah).
+      teksGagal: ({ kodeError, usernameTerdaftar }) => {
+        if (!usernameTerdaftar) return 'Login gagal: username tidak terdaftar';
+        switch (kodeError) {
+          case 'ERR_INVALID_CREDENTIALS':
+            // Sengaja memakai "kata sandi" (bukan "password") supaya teks
+            // log tidak pernah memuat token kredensial — grep harfiah
+            // 'password' harus 0 baris.
+            return 'Login gagal: username atau kata sandi salah';
+          case 'ERR_DEVICE_MISMATCH':
+            return 'Login gagal: perangkat sudah terikat akun lain';
+          case 'ERR_ACCOUNT_INACTIVE':
+            return 'Login gagal: akun tidak aktif';
+          case 'ERR_DEVICE_ID_REQUIRED':
+            // Frasa "perangkat" menggantikan nama field `device_id` supaya
+            // grep harfiah 'device_id' juga 0 baris.
+            return 'Login gagal: perangkat wajib diisi untuk Mahasantri';
+          default:
+            return `Login gagal (${kodeError})`;
+        }
+      },
+    },
+  )
   @ApiOperation({
     summary: 'Login pengguna',
     description:

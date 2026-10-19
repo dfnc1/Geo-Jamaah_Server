@@ -13,7 +13,7 @@ import {
 } from '@nestjs/swagger';
 import { Role } from '@generated/prisma/enums';
 import { Roles } from '@src/auth/decorators/roles.decorator';
-import { Audit } from '@src/activity-log/audit.decorator';
+import { Audit } from '@src/activity-log/activity-log.interceptor';
 import { MahasantriService } from './mahasantri.service';
 import { ResetDeviceResponseDto } from './dto/reset-device.dto';
 import {
@@ -35,7 +35,13 @@ export class MahasantriController {
 
   @Post(':nim/reset-device')
   @HttpCode(HttpStatus.OK)
-  @Audit('Mahasantri', 'reset-device')
+  @Audit(
+    'Mahasantri',
+    (data) =>
+      `Reset device Mahasantri ${(data as ResetDeviceResponseDto).nim} (${
+        (data as ResetDeviceResponseDto).nama
+      })`,
+  )
   @ApiOperation({
     summary: 'Reset device_id Mahasantri',
     description:

@@ -12,7 +12,7 @@ import {
 } from '@nestjs/swagger';
 import { Role } from '@generated/prisma/enums';
 import { Roles } from '@src/auth/decorators/roles.decorator';
-import { Audit } from '@src/activity-log/audit.decorator';
+import { Audit } from '@src/activity-log/activity-log.interceptor';
 import { TandaiTidakHadirService } from './tandai-tidak-hadir.service';
 import { RunTandaiTidakHadirDto } from './dto/run-tandai-tidak-hadir.dto';
 import { HasilTandaiTidakHadirDto } from './dto/hasil-tandai.dto';
@@ -37,7 +37,11 @@ export class JobsController {
 
   @Post('tandai-tidak-hadir')
   @HttpCode(HttpStatus.OK)
-  @Audit('Jobs', 'pemicu-job')
+  @Audit('Jobs', (data) => {
+    const r = data as HasilTandaiTidakHadirDto;
+    const { Tidak_Hadir, Izin } = r.dibuat;
+    return `Pemicu manual job tandai-tidak-hadir ${r.tanggal}: Tidak_Hadir ${Tidak_Hadir}, Izin ${Izin} (total ${Tidak_Hadir + Izin})`;
+  })
   @ApiOperation({
     summary: 'Jalankan job Tidak_Hadir/Izin secara manual (demo)',
     description:

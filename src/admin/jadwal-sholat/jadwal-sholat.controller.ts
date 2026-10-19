@@ -25,7 +25,7 @@ import {
 } from '@nestjs/swagger';
 import { Role } from '@generated/prisma/enums';
 import { Roles } from '@src/auth/decorators/roles.decorator';
-import { Audit } from '@src/activity-log/audit.decorator';
+import { Audit } from '@src/activity-log/activity-log.interceptor';
 import { JadwalSholatService } from './jadwal-sholat.service';
 import { CreateJadwalSholatDto } from './dto/create-jadwal-sholat.dto';
 import { UpdateJadwalSholatDto } from './dto/update-jadwal-sholat.dto';
@@ -61,7 +61,10 @@ export class JadwalSholatController {
   constructor(private readonly jadwalSholatService: JadwalSholatService) {}
 
   @Post()
-  @Audit('Jadwal', 'membuat-jadwal')
+  @Audit(
+    'Jadwal',
+    (data) => `Membuat jadwal sholat ${(data as JadwalSholatDto).nama_sholat}`,
+  )
   @ApiOperation({
     summary: 'Tambah jadwal sholat',
     description:
@@ -119,7 +122,10 @@ export class JadwalSholatController {
   }
 
   @Patch(':id_jadwal')
-  @Audit('Jadwal', 'mengubah-jadwal')
+  @Audit(
+    'Jadwal',
+    (data) => `Mengubah jadwal sholat ${(data as JadwalSholatDto).id_jadwal}`,
+  )
   @ApiOperation({
     summary: 'Ubah jadwal sholat',
     description:
@@ -148,7 +154,11 @@ export class JadwalSholatController {
 
   @Delete(':id_jadwal')
   @HttpCode(HttpStatus.OK)
-  @Audit('Jadwal', 'menghapus-jadwal')
+  @Audit(
+    'Jadwal',
+    (data) =>
+      `Menghapus jadwal sholat ${(data as DeleteJadwalSholatResponseDto).id_jadwal}`,
+  )
   @ApiOperation({
     summary: 'Hapus jadwal sholat',
     description:

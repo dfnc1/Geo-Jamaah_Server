@@ -1,33 +1,76 @@
 import {
   CallHandler,
   ExecutionContext,
+  HttpException,
   Injectable,
   Logger,
   NestInterceptor,
+  SetMetadata,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Observable, throwError } from 'rxjs';
 import { catchError, tap } from 'rxjs/operators';
-import { HttpException } from '@nestjs/common';
 import { Request } from 'express';
 import { Role } from '@generated/prisma/client';
-import { AUDIT_KEY, AuditMetadata } from './audit.decorator';
 import { ActivityLogService } from './activity-log.service';
-import {
-  teksLoginGagal,
-  teksLoginBerhasil,
-  teksPresensi,
-  teksAjukanIzin,
-  teksVerifikasiIzin,
-  teksMembuatMasjid,
-  teksMengubahMasjid,
-  teksMenghapusMasjid,
-  teksMembuatJadwal,
-  teksMengubahJadwal,
-  teksMenghapusJadwal,
-  teksResetDevice,
-  teksPemicuJob,
-} from './audit-teks';
+
+export const AUDIT_KEY = 'audit';
+
+/** Metadata `@Audit`. */
+export interface AuditMetadata {
+  /** Nama modul pada kolom `modul` (Auth, Presensi, Izin, Masjid, dst). */
+  modul: string;
+  /**
+   * Pembentuk teks sukses — DITULIS LANGSUNG DI DECORATOR tiap endpoint
+   * sebagai fungsi kecil yang hanya memilih field eksplisit dari `data`
+   * (bentuk mentah respons handler, bungkusan TransformInterceptor sudah
+   * dibuka dulu). Kebijakan keras: teks harus eksplisit (contoh:
+   * "Presensi Subuh berhasil, jarak 23 m"), maks 500 karakter (ditekan
+   * `ActivityLogService.catat`), dan TIDAK PERNAH memuat field sensitif
+   * (password, token, device_id, body mentah) karena teks tidak pernah
+   * dibentuk dari objek request.
+   */
+  teks: (data: unknown) => string;
+  /**
+   * Khusus login: pembentuk teks kegagalan dari kode error whitelist
+   * `ERR_XXX` + hasil lookup username (bukan body mentah). Dipakai bila
+   * `catatGagal: true`; tanpa ini fallback `Login gagal (<kode>)`.
+   */
+  teksGagal?: (info: {
+    kodeError: string;
+    usernameTerdaftar: boolean;
+  }) => string;
+  /** Khusus login: catat juga bila handler melempar error (login gagal). */
+  catatGagal?: boolean;
+}
+
+/**
+ * Tandai handler HTTP supaya interceptor global mencatat activity log
+ * (BR-11) setelah handler sukses, atau — bila `catatGagal: true` — saat
+ * handler melempar error (login gagal). Hanya berlaku untuk handler yang
+ * memakai decorator ini; aksi baru TIDAK otomatis dicatat (endpoint GET
+ * memang tidak diberi `@Audit`, sehingga tidak pernah tercatat).
+ *
+ * Contoh:
+ * ```ts
+ * @Audit('Masjid', (data) => `Membuat masjid ${(data as MasjidDto).nama_masjid}`)
+ * ```
+ */
+export function Audit(
+  modul: string,
+  teks: AuditMetadata['teks'],
+  options?: {
+    catatGagal?: boolean;
+    teksGagal?: AuditMetadata['teksGagal'];
+  },
+): MethodDecorator & ClassDecorator {
+  return SetMetadata(AUDIT_KEY, {
+    modul,
+    teks,
+    teksGagal: options?.teksGagal,
+    catatGagal: options?.catatGagal ?? false,
+  } satisfies AuditMetadata);
+}
 
 /**
  * Bentuk `req.user` yang diisi JwtStrategy (hanya dipakai interceptor ini).
@@ -74,14 +117,13 @@ export class ActivityLogInterceptor implements NestInterceptor {
     return next.handle().pipe(
       tap((wrapper) => {
         // Seluruh blok audit dibungkus try/catch: kegagalan menulis log
-        // (termasuk error sync yang tak terduga) TIDAK PERNAH boleh
-        // menggagalkan request utama.
+        // (termasuk error sync builder teks yang tak terduga) TIDAK PERNAH
+        // boleh menggagalkan request utama.
         try {
           // Respons di sini sudah dibungkus TransformInterceptor
-          // `{ success, statusCode, message, data }`; bangun teks dari
-          // `data` (bukan body mentah) supaya field yang dibutuhkan builder
-          // tersedia. Bila belum dibungkus (bentuk mentah), dipakai apa
-          // adanya.
+          // `{ success, statusCode, message, data }`; builder teks menerima
+          // `data` (bukan body mentah). Bila belum dibungkus (bentuk
+          // mentah), dipakai apa adanya.
           const response = this.bukaBungkus(wrapper);
 
           // Identitas pelaku: req.user (endpoint terautentikasi) ATAU data
@@ -94,12 +136,11 @@ export class ActivityLogInterceptor implements NestInterceptor {
             return;
           }
 
-          const teks = this.buildTeks(audit, response);
           this.activityLogService.catat({
             username: identitas.username,
             role: identitas.role,
             modul: audit.modul,
-            aktivitas: teks,
+            aktivitas: audit.teks(response),
           });
         } catch (e) {
           this.logger.warn(
@@ -127,40 +168,6 @@ export class ActivityLogInterceptor implements NestInterceptor {
         return throwError(() => error);
       }),
     );
-  }
-
-  /** Bangun teks aktivitas dari metadata + respons handler. */
-  private buildTeks(audit: AuditMetadata, response: unknown): string {
-    // Telemetry: teks builder per aksi menerima field eksplisit dari
-    // respons (bukan objek utuh). Password/token TIDAK PERNAH masuk.
-    switch (audit.teks) {
-      case 'login-berhasil':
-        return teksLoginBerhasil();
-      case 'presensi':
-        return teksPresensi(response as never);
-      case 'ajukan-izin':
-        return teksAjukanIzin(response as never);
-      case 'verifikasi-izin':
-        return teksVerifikasiIzin(response as never);
-      case 'membuat-masjid':
-        return teksMembuatMasjid((response as { nama_masjid: string }).nama_masjid);
-      case 'mengubah-masjid':
-        return teksMengubahMasjid((response as { id_masjid: string }).id_masjid);
-      case 'menghapus-masjid':
-        return teksMenghapusMasjid((response as { id_masjid: string }).id_masjid);
-      case 'membuat-jadwal':
-        return teksMembuatJadwal((response as { nama_sholat: string }).nama_sholat);
-      case 'mengubah-jadwal':
-        return teksMengubahJadwal((response as { id_jadwal: string }).id_jadwal);
-      case 'menghapus-jadwal':
-        return teksMenghapusJadwal((response as { id_jadwal: string }).id_jadwal);
-      case 'reset-device':
-        return teksResetDevice(response as never);
-      case 'pemicu-job':
-        return teksPemicuJob(response as never);
-      default:
-        return audit.teks;
-    }
   }
 
   /**
@@ -216,7 +223,11 @@ export class ActivityLogInterceptor implements NestInterceptor {
   private extractKodeError(error: unknown): string {
     if (error instanceof HttpException) {
       const response = error.getResponse();
-      if (typeof response === 'object' && response !== null && 'error' in response) {
+      if (
+        typeof response === 'object' &&
+        response !== null &&
+        'error' in response
+      ) {
         return String((response as { error: unknown }).error);
       }
     }
@@ -228,17 +239,24 @@ export class ActivityLogInterceptor implements NestInterceptor {
    * dibaca dari req.body; potong maks 100 karakter (kolom VarChar(100)).
    * Password TIDAK PERNAH dibaca dari sini.
    */
-  private extractUsernameFromLoginBody(request: RequestWithUser): string | null {
+  private extractUsernameFromLoginBody(
+    request: RequestWithUser,
+  ): string | null {
     const body = request.body as { username?: unknown } | undefined;
-    if (body && typeof body.username === 'string' && body.username.trim() !== '') {
+    if (
+      body &&
+      typeof body.username === 'string' &&
+      body.username.trim() !== ''
+    ) {
       return body.username.slice(0, 100);
     }
     return null;
   }
 
   /**
-   * Cari role asli untuk login gagal via 1 query by username. Return null
-   * bila username tidak terdaftar (caller memakai placeholder Mahasantri).
+   * Cari role asli untuk login gagal via 1 query by username, lalu bentuk
+   * teks lewat `teksGagal` di decorator login. Return null bila username
+   * tidak terdaftar (teks disesuaikan; role memakai placeholder Mahasantri).
    * Query gagal -> null (jangan gagalkan request).
    */
   private async catatLoginGagal(
@@ -248,7 +266,10 @@ export class ActivityLogInterceptor implements NestInterceptor {
   ): Promise<void> {
     try {
       const role = await this.cariRolePengguna(username);
-      const teks = teksLoginGagal(kode, role !== null);
+      const terdaftar = role !== null;
+      const teks = audit.teksGagal
+        ? audit.teksGagal({ kodeError: kode, usernameTerdaftar: terdaftar })
+        : `Login gagal (${kode})`;
       this.activityLogService.catat({
         username,
         // Role asli bila username terdaftar; placeholder Mahasantri bila

@@ -133,7 +133,7 @@ export class PresensiService {
     }
 
     // Activity log dicatat oleh interceptor global (ActivityLogInterceptor)
-    // yang membaca metadata @Audit('Presensi', 'presensi') pada controller.
+    // yang membaca metadata @Audit('Presensi', <fungsi teks>) pada controller.
 
     return {
       status_presensi: StatusPresensi.Hadir,

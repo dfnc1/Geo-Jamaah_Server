@@ -33,7 +33,7 @@ export class MahasantriService {
     }
 
     // Activity log dicatat oleh interceptor global (ActivityLogInterceptor)
-    // yang membaca metadata @Audit('Mahasantri', 'reset-device') pada controller.
+    // yang membaca metadata @Audit('Mahasantri', <fungsi teks>) pada controller.
     const updated = await this.prismaService.pengguna.update({
       where: { id_pengguna: mahasantri.pengguna.id_pengguna },
       data: { device_id: null },

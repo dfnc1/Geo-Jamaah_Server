@@ -13,7 +13,7 @@ import {
 } from '@nestjs/swagger';
 import { Role } from '@generated/prisma/enums';
 import { Roles } from '@src/auth/decorators/roles.decorator';
-import { Audit } from '@src/activity-log/audit.decorator';
+import { Audit } from '@src/activity-log/activity-log.interceptor';
 import { IzinService } from './izin.service';
 import { CreateIzinDto } from './dto/create-izin.dto';
 import { IzinDto } from './dto/izin.dto';
@@ -41,7 +41,16 @@ export class IzinController {
   constructor(private readonly izinService: IzinService) {}
 
   @Post()
-  @Audit('Izin', 'ajukan-izin')
+  @Audit('Izin', (data) => {
+    const r = data as IzinDto;
+    // Menerima Date (bentuk mentah Prisma) maupun string ISO; keduanya
+    // dipotong ke YYYY-MM-DD.
+    const iso =
+      r.tanggal_izin instanceof Date
+        ? r.tanggal_izin.toISOString()
+        : String(r.tanggal_izin);
+    return `Mengajukan izin ${r.jenis_izin} tanggal ${iso.slice(0, 10)}`;
+  })
   @ApiOperation({
     summary: 'Ajukan izin',
     description:

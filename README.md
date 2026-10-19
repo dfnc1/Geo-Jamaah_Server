@@ -94,14 +94,11 @@ Geo-Jamaah_Server/
 │   │   ├── mahasantri/         # Reset device Mahasantri
 │   │   ├── masjid/             # CRUD masjid
 │   │   └── admin.module.ts     # Menggabungkan ketiga module di atas
-│   ├── activity-log/            # Activity log / audit trail (tahap 11)
-│   │   ├── dto/                 # DTO query & response endpoint log
-│   │   ├── activity-log.controller.ts  # GET /v1/admin/activity-logs (Admin)
-│   │   ├── activity-log.interceptor.ts # APP_INTERCEPTOR: baca @Audit lalu catat
+│   ├── activity-log/            # Activity log / audit trail (tahap 11; maks 4 file)
+│   │   ├── activity-log.controller.ts  # GET /v1/admin/activity-logs + DTO query/respons
+│   │   ├── activity-log.interceptor.ts # APP_INTERCEPTOR + decorator @Audit (teks inline)
 │   │   ├── activity-log.module.ts
-│   │   ├── activity-log.service.ts     # Tulis fire-and-forget + cari(filter, pagination)
-│   │   ├── audit.decorator.ts   # @Audit(modul, teks, { catatGagal? })
-│   │   └── audit-teks.ts        # Fungsi murni pembentuk teks aktivitas
+│   │   └── activity-log.service.ts     # Tulis fire-and-forget + cari(filter, pagination)
 │   ├── auth/                   # Autentikasi (login, JWT, guard)
 │   │   ├── decorators/         # @Public(), @Roles()
 │   │   ├── dto/
@@ -377,7 +374,7 @@ Proyek ini menggunakan [Conventional Commits](https://www.conventionalcommits.or
 | Scheduled job `Tidak_Hadir` | ✅ Selesai | Cron `@nestjs/schedule` tiap menit (Asia/Jakarta) + pemicu manual Admin; izin Disetujui → status `Izin`; idempoten (skipDuplicates, Hadir tidak ditimpa); baris otomatis: masjid utama + koordinat 0,0; 21 unit test |
 | Monitoring Musyrif & grafik | 🟡 Sebagian | Tahap 9: `GET /v1/musyrif/presensi/monitoring` (matriks Hadir/Tidak_Hadir/Izin/Manual/"Belum" per jadwal + ringkasan sel; 3 query tanpa N+1; 18 unit test). Grafik tren kehadiran menyusul |
 | DSS & EWS | ✅ Selesai | Tahap 10: `GET /v1/musyrif/dss/santri-kritis` (rasio = Hadir+Manual / (baris presensi periode − Izin), streak alpha; 29 unit test) |
-| Activity log | ✅ Selesai | Tahap 11: interceptor `@Audit` + `APP_INTERCEPTOR` (11 titik aksi, GET tidak dicatat, teks eksplisit tanpa password/token/`device_id`, gagal menulis log tidak menggagalkan request) + `GET /v1/admin/activity-logs` (hanya Admin, filter WIB & pagination); 61 unit test |
+| Activity log | ✅ Selesai | Tahap 11: interceptor `@Audit` + `APP_INTERCEPTOR` (11 titik aksi, GET tidak dicatat, teks eksplisit tanpa password/token/`device_id`, gagal menulis log tidak menggagalkan request) + `GET /v1/admin/activity-logs` (hanya Admin, filter WIB & pagination); struktur sederhana 4 file di `src/activity-log/` (teks tiap aksi inline di decorator) + 20 unit test satu suite |
 | Rekap Admin & grafik | ⏳ Belum Dimulai | Tahap 12 |
 | Testing & QA | ⏳ Belum Dimulai | Tahap 13 (konfigurasi Jest + e2e bawaan belum diganti) |
 | Docker aplikasi | 🟡 Sebagian | Baru service Postgres; Dockerfile & service `api` belum (tahap 14) |

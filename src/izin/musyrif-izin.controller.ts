@@ -27,7 +27,7 @@ import {
 } from '@nestjs/swagger';
 import { Role } from '@generated/prisma/enums';
 import { Roles } from '@src/auth/decorators/roles.decorator';
-import { Audit } from '@src/activity-log/audit.decorator';
+import { Audit } from '@src/activity-log/activity-log.interceptor';
 import { IzinService } from './izin.service';
 import { QueryMusyrifIzinDto } from './dto/query-musyrif-izin.dto';
 import { VerifyIzinDto } from './dto/verify-izin.dto';
@@ -92,7 +92,13 @@ export class MusyrifIzinController {
 
   @Patch(':id_izin/verify')
   @HttpCode(HttpStatus.OK)
-  @Audit('Izin', 'verifikasi-izin')
+  @Audit(
+    'Izin',
+    (data) =>
+      `Memverifikasi izin ${(data as IzinMusyrifDto).nim} menjadi ${
+        (data as IzinMusyrifDto).status_persetujuan
+      }`,
+  )
   @ApiOperation({
     summary: 'Verifikasi izin (Disetujui/Ditolak)',
     description:

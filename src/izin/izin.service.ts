@@ -55,7 +55,7 @@ export class IzinService {
     });
 
     // Activity log dicatat oleh interceptor global (ActivityLogInterceptor)
-    // yang membaca metadata @Audit('Izin', 'ajukan-izin') pada controller.
+    // yang membaca metadata @Audit('Izin', <fungsi teks>) pada controller.
 
     return this.toIzinDto(izin);
   }
@@ -176,7 +176,7 @@ export class IzinService {
     });
 
     // Activity log dicatat oleh interceptor global (ActivityLogInterceptor)
-    // yang membaca metadata @Audit('Izin', 'verifikasi-izin') pada controller.
+    // yang membaca metadata @Audit('Izin', <fungsi teks>) pada controller.
 
     return {
       ...this.toIzinDto({ ...izin, status_persetujuan: dto.status_persetujuan }),

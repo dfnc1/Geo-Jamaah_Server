@@ -13,7 +13,7 @@ import {
 } from '@nestjs/swagger';
 import { Role } from '@generated/prisma/enums';
 import { Roles } from '@src/auth/decorators/roles.decorator';
-import { Audit } from '@src/activity-log/audit.decorator';
+import { Audit } from '@src/activity-log/activity-log.interceptor';
 import { PresensiService } from './presensi.service';
 import { CreatePresensiDto } from './dto/create-presensi.dto';
 import { PresensiDto } from './dto/presensi.dto';
@@ -39,7 +39,14 @@ export class PresensiController {
   constructor(private readonly presensiService: PresensiService) {}
 
   @Post()
-  @Audit('Presensi', 'presensi')
+  // Contoh BR-11: "Presensi Subuh berhasil, jarak 23 m" (jarak dibulatkan).
+  @Audit(
+    'Presensi',
+    (data) =>
+      `Presensi ${(data as PresensiDto).nama_sholat} berhasil, jarak ${Math.round(
+        (data as PresensiDto).jarak_meter,
+      )} m`,
+  )
   @ApiOperation({
     summary: 'Catat presensi berbasis geolokasi',
     description:
