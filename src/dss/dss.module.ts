@@ -8,5 +8,6 @@ import { DssService } from './dss.service';
   imports: [PrismaModule],
   controllers: [MusyrifDssController],
   providers: [DssService],
+  exports: [DssService],
 })
 export class DssModule {}

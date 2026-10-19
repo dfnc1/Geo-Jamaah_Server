@@ -15,6 +15,7 @@ import { DssModule } from './dss/dss.module';
 import { ActivityLogModule } from './activity-log/activity-log.module';
 import { ActivityLogInterceptor } from './activity-log/activity-log.interceptor';
 import { parseThrottleLimit } from './common/throttle-limit';
+import { DashboardModule } from './dashboard/dashboard.module';
 
 @Module({
   imports: [
@@ -50,6 +51,7 @@ import { parseThrottleLimit } from './common/throttle-limit';
     JobsModule,
     DssModule,
     ActivityLogModule,
+    DashboardModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
