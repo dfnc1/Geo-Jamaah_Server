@@ -4,7 +4,7 @@ Legenda: ✅ selesai, 🟡 sebagian, ⬜ belum.
 
 ## Posisi Sekarang
 
-Tahap 1 sampai 5 dan tahap 7 sampai 12 selesai (tahap 7 tanpa lampiran MinIO). P1 (env, Swagger, throttler) juga sudah beres. Sisa yang masih terbuka bersifat opsional: tahap 6 (riwayat & ringkasan hari ini), lampiran izin (MinIO), Docker aplikasi, dan e2e testing.
+Tahap 1 sampai 5 dan tahap 7 sampai 12 selesai, tahap 6 sebagian (ringkasan 5 shalat hari ini selesai via `GET /v1/presensi/hari-ini`, riwayat kehadiran belum; tahap 7 tanpa lampiran MinIO). P1 (env, Swagger, throttler) juga sudah beres. Sisa yang masih terbuka bersifat opsional: riwayat presensi, lampiran izin (MinIO), Docker aplikasi, dan e2e testing.
 
 ## Status 14 Tahap Backend
 
@@ -47,8 +47,8 @@ Tahap 1 sampai 5 dan tahap 7 sampai 12 selesai (tahap 7 tanpa lampiran MinIO). P
 - ✅ Unit test Haversine dan window time (16 test, `pnpm test`)
 - ✅ Tes manual 14 skenario (sukses, RBAC, validasi, 404, 409, mock, akurasi, luar radius, luar jam)
 
-**6. Riwayat dan ringkasan hari ini** ⬜
-- ⬜ Ringkasan 5 shalat hari ini
+**6. Riwayat dan ringkasan hari ini** 🟡
+- ✅ Ringkasan 5 shalat hari ini (`GET /v1/presensi/hari-ini`: status `Hadir`/`Tidak_Hadir`/`Izin`/`Manual`/`"Belum"`, `sedang_dalam_window` inklusif WIB, masjid utama; 3 query tanpa N+1)
 - ⬜ Riwayat kehadiran (pagination)
 
 **7. Izin dan lampiran** 🟡
@@ -142,10 +142,10 @@ Sebelum tahap 13, bereskan backlog P2 no. 10 (sisa mengganti e2e bawaan — file
 
 | File | Status |
 |---|---|
-| `API_CONTRACT.md` | ✅ Login lengkap, 12 endpoint Admin, `GET /v1/musyrif/presensi/monitoring` (tahap 9), `GET /v1/admin/activity-logs`, `nama_sholat` di respons presensi, teks login gagal (termasuk role placeholder) ditambahkan di tahap 11, 3 endpoint dashboard & rekap (tahap 12) ditambahkan |
+| `API_CONTRACT.md` | ✅ Login lengkap, 12 endpoint Admin, `GET /v1/presensi/hari-ini` (tahap 6), `GET /v1/musyrif/presensi/monitoring` (tahap 9), `GET /v1/admin/activity-logs`, `nama_sholat` di respons presensi, teks login gagal (termasuk role placeholder) ditambahkan di tahap 11, 3 endpoint dashboard & rekap (tahap 12) ditambahkan |
 | `DATABASE_SCHEMA.md` | ✅ Bagian Prisma schema disalin ulang dari `prisma/schema.prisma`; daftar index dan foreign key diperbarui |
 | `README.md` | ✅ Status modul sesuai kenyataan, `src/common/`, `src/admin/`, dan `src/dashboard/` di struktur folder, bagian Swagger, variabel `.env`, Node 24+, 3 endpoint dashboard & rekap ditambahkan ke tabel endpoint |
-| `FRONTEND_GUIDE.md` | ✅ Dibuat berisi tabel status endpoint (Siap / Rencana). 3 endpoint dashboard & rekap ditambahkan ke tabel status dan catatan penggunaan di akhir |
+| `FRONTEND_GUIDE.md` | ✅ Dibuat berisi tabel status endpoint (Siap / Rencana). `GET /v1/presensi/hari-ini` ditandai Siap beserta penjelasan ringkas. 3 endpoint dashboard & rekap ditambahkan ke tabel status dan catatan penggunaan di akhir |
 | `BUSINESS_RULES.md` | ✅ Sudah sesuai |
 
 ## Checklist
@@ -175,3 +175,4 @@ Sebelum tahap 13, bereskan backlog P2 no. 10 (sisa mengganti e2e bawaan — file
   - **Keputusan teks UPDATE/DELETE memakai id**: `"Mengubah masjid <id>"`, `"Menghapus masjid <id>"`, `"Mengubah/Menghapus jadwal sholat <id>"` (respons DELETE hanya memuat id; konsisten dengan UPDATE). CREATE tetap memakai nama.
   - **Keputusan anti-grep sensitif**: frasa login gagal memakai "kata sandi" dan "perangkat" sehingga grep harfiah `%password%` dan `%device_id%` di `activity_logs` = 0 baris.
 - [x] Tahap 12 rekap Admin dan grafik dashboard (`GET /v1/musyrif/dashboard/tren-kehadiran?hari=7`, `GET /v1/admin/dashboard/tren-kehadiran?hari=7`, `GET /v1/admin/rekap`; fungsi murni `hitungTrenHarian` di `src/dashboard/dashboard-tren.ts` + unit test; satu query agregasi `groupBy` tanpa loop per hari; hari tanpa data bernilai 0; `persen_hadir` satu desimal null bila penyebut 0)
+- [x] Tahap 6 ringkasan presensi hari ini (`GET /v1/presensi/hari-ini`: status `Hadir`/`Tidak_Hadir`/`Izin`/`Manual`/`"Belum"`, `sedang_dalam_window` jam server WIB batas inklusif, masjid utama, 3 query tanpa N+1, 18 unit test)

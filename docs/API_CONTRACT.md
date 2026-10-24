@@ -198,6 +198,43 @@ Kirim token di header: `Authorization: Bearer <access_token>`.
   - `nama_sholat` = nama jadwal terkait (field **tambahan / additive** sejak tahap 11, dipakai untuk teks activity log `Presensi <nama> berhasil, jarak <n> m` tanpa query tambahan).
 - Error: 400 (`ERR_VALIDATION`, `ERR_MOCK_LOCATION`, `ERR_GPS_ACCURACY_LOW`, `ERR_TIME_WINDOW_INVALID`, `ERR_GEOFENCE_RADIUS_EXCEEDED`), 401, 403, 404 (`ERR_JADWAL_NOT_FOUND` / `ERR_MASJID_NOT_FOUND` / `ERR_MAHASANTRI_NOT_FOUND`), 409 `ERR_ALREADY_PRESENT`
 
+## ✅ GET /v1/presensi/hari-ini
+- Akses: Mahasantri (`@Roles(Role.Mahasantri)`).
+- Query: tidak ada.
+- `nim` diambil otomatis dari token JWT (`sub` → profil Mahasantri).
+- Mengembalikan ringkasan presensi 5 shalat hari ini beserta data masjid utama dan status window presensi saat ini.
+- `tanggal`: format string `YYYY-MM-DD` (berdasarkan jam server zona Asia/Jakarta / WIB).
+- `masjid`: masjid utama (deterministik: diurutkan berdasarkan `nama_masjid asc, id_masjid asc`), atau `null` jika belum ada data masjid:
+  ```json
+  {
+    "id_masjid": "uuid-masjid",
+    "nama_masjid": "Masjid Al-Ikhlas",
+    "latitude": -6.2146,
+    "longitude": 106.8451,
+    "radius_toleransi": 100
+  }
+  ```
+- `jadwal`: array seluruh jadwal sholat diurutkan berdasarkan `waktu_azan` menaik:
+  ```json
+  [
+    {
+      "id_jadwal": "uuid-jadwal",
+      "nama_sholat": "Subuh",
+      "waktu_azan": "04:30",
+      "waktu_iqamah": "04:35",
+      "waktu_mulai_presensi": "04:20",
+      "waktu_akhir_presensi": "05:00",
+      "status": "Hadir",
+      "sedang_dalam_window": false
+    }
+  ]
+  ```
+  - `status`: status presensi santri bersangkutan hari ini untuk jadwal tersebut (`Hadir` | `Tidak_Hadir` | `Izin` | `Manual` | `Belum`). Bila belum ada baris presensi, bernilai `"Belum"`.
+  - `sedang_dalam_window`: boolean. Bernilai `true` jika jam server saat ini (WIB) berada di dalam window presensi (`waktu_mulai_presensi` s/d `waktu_akhir_presensi`, inklusif di kedua batas). Frontend dapat menggunakannya untuk mengontrol tombol presensi.
+- Strategi query: tepat 3 query tanpa N+1 (`mahasantri.findUnique` → `masjid.findFirst` + `jadwalSholat.findMany` dengan nested presensi santri hari ini).
+- 200: `{ "tanggal": "YYYY-MM-DD", "masjid": { ... } | null, "jadwal": [ ... ] }`
+- Error: 401 `ERR_UNAUTHORIZED`, 403 `ERR_FORBIDDEN_ROLE`, 404 `ERR_MAHASANTRI_NOT_FOUND`
+
 ---
 
 ## ✅ POST /v1/izin
@@ -453,7 +490,6 @@ Kirim token di header: `Authorization: Bearer <access_token>`.
 Daftar fitur dari PRD yang belum punya kode. Jangan dipanggil frontend sebelum kode ada. Perlu diputuskan detailnya sebelum tahap terkait dikerjakan.
 
 ## 📋 Endpoint Rencana Lainnya
-- `GET /v1/presensi/hari-ini` (ringkasan 5 shalat hari ini, Mahasantri)
 - `GET /v1/presensi/riwayat` (riwayat kehadiran, Mahasantri)
 - `POST /v1/izin/lampiran` (upload ke MinIO, mengembalikan object key)
 - `GET /v1/admin/mahasantri`, `GET/PATCH/DELETE /v1/admin/mahasantri/:nim` (CRUD lengkap Mahasantri; sekarang hanya endpoint reset-device)

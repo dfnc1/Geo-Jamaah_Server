@@ -26,7 +26,7 @@ Legenda: 🟢 **Siap** = sudah ada di kode dan teruji. ⚪ **Rencana** = belum d
 | `DELETE` | `/v1/admin/jadwal-sholat/:id_jadwal` | Admin | 🟢 Siap |
 | `POST` | `/v1/admin/mahasantri/:nim/reset-device` | Admin | 🟢 Siap |
 | `POST` | `/v1/presensi` | Mahasantri | 🟢 Siap |
-| `GET` | `/v1/presensi/hari-ini` | Mahasantri | ⚪ Rencana (tahap 6) |
+| `GET` | `/v1/presensi/hari-ini` | Mahasantri | 🟢 Siap (tahap 6) |
 | `GET` | `/v1/presensi/riwayat` | Mahasantri | ⚪ Rencana (tahap 6) |
 | `POST` | `/v1/izin` | Mahasantri | 🟢 Siap (tahap 7) |
 | `GET` | `/v1/izin/saya` | Mahasantri | 🟢 Siap (tahap 7) |
@@ -34,12 +34,12 @@ Legenda: 🟢 **Siap** = sudah ada di kode dan teruji. ⚪ **Rencana** = belum d
 | `GET` | `/v1/musyrif/izin?status=Pending` | Musyrif | 🟢 Siap (tahap 7) |
 | `PATCH` | `/v1/musyrif/izin/:id_izin/verify` | Musyrif | 🟢 Siap (tahap 7) |
 | `POST` | `/v1/admin/jobs/tandai-tidak-hadir` | Admin | 🟢 Siap (tahap 8) |
-| `GET` | `/v1/musyrif/dss/santri-kritis` | Musyrif | ✅ Selesai (tahap 10) |
-| `GET` | `/v1/musyrif/presensi/monitoring` | Musyrif | ✅ Selesai (tahap 9) |
-| `GET` | `/v1/admin/activity-logs` | Admin | ✅ Selesai (tahap 11) |
-| `GET` | `/v1/musyrif/dashboard/tren-kehadiran?hari=7` | Musyrif | ✅ Selesai (tahap 12) |
-| `GET` | `/v1/admin/dashboard/tren-kehadiran?hari=7` | Admin | ✅ Selesai (tahap 12) |
-| `GET` | `/v1/admin/rekap` | Admin | ✅ Selesai (tahap 12) |
+| `GET` | `/v1/musyrif/dss/santri-kritis` | Musyrif | 🟢 Siap (tahap 10) |
+| `GET` | `/v1/musyrif/presensi/monitoring` | Musyrif | 🟢 Siap (tahap 9) |
+| `GET` | `/v1/admin/activity-logs` | Admin | 🟢 Siap (tahap 11) |
+| `GET` | `/v1/musyrif/dashboard/tren-kehadiran?hari=7` | Musyrif | 🟢 Siap (tahap 12) |
+| `GET` | `/v1/admin/dashboard/tren-kehadiran?hari=7` | Admin | 🟢 Siap (tahap 12) |
+| `GET` | `/v1/admin/rekap` | Admin | 🟢 Siap (tahap 12) |
 
 ## Format Respons
 
@@ -141,6 +141,17 @@ Semua endpoint `/v1/admin/*` hanya untuk role Admin (selain itu 403 `ERR_FORBIDD
 - Jam presensi memakai **jam server WIB**, bukan jam HP — jangan pernah membandingkan waktu sendiri di frontend untuk menentukan boleh presensi atau tidak; biarkan server yang menolak.
 - Respons sukses 201: `{ "status_presensi": "Hadir", "nama_sholat": "Subuh", "jarak_meter": 55.6 }`. `jarak_meter` dibulatkan 2 desimal, boleh ditampilkan sebagai bukti jarak; tidak dikirim balik ke server. `nama_sholat` adalah field tambahan sejak tahap 11 (nama jadwal yang dipakai) — aman ditampilkan sebagai konfirmasi shalat apa yang baru dicatat.
 - Satu presensi per jadwal per hari. Kalau user menekan tombol dua kali dan mendapat 409 `ERR_ALREADY_PRESENT`, anggap sebagai sukses (presensi pertama sudah tercatat).
+
+### Ringkasan Hari Ini (`GET /v1/presensi/hari-ini`, tahap 6)
+
+- Hanya role Mahasantri. Kirim token; `nim` diselesaikan di server.
+- Mengembalikan:
+  - `tanggal`: tanggal hari ini dalam format `YYYY-MM-DD` (WIB).
+  - `masjid`: data masjid utama (`id_masjid`, `nama_masjid`, `latitude`, `longitude`, `radius_toleransi`) atau `null` jika belum ada data masjid.
+  - `jadwal`: array 5 waktu shalat urut azan menaik. Tiap item memuat:
+    - `status`: `"Hadir"` | `"Tidak_Hadir"` | `"Izin"` | `"Manual"` | `"Belum"` (`"Belum"` jika belum ada baris presensi hari ini).
+    - `sedang_dalam_window`: boolean (true bila jam server WIB berada di dalam rentang waktu presensi, batas inklusif). Frontend dapat langsung menggunakan flag ini untuk mengaktifkan tombol "Presensi".
+
 
 ## Catatan Izin (`POST /v1/izin`, `GET /v1/izin/saya`, `GET /v1/musyrif/izin`, `PATCH /v1/musyrif/izin/:id_izin/verify`)
 
