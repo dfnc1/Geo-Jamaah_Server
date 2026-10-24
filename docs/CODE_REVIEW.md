@@ -4,7 +4,7 @@ Legenda: ✅ selesai, 🟡 sebagian, ⬜ belum.
 
 ## Posisi Sekarang
 
-Tahap 1 sampai 5, tahap 7 (izin, tanpa upload lampiran), tahap 8 (scheduled job `Tidak_Hadir`), **tahap 9 (monitoring Musyrif + grafik tren kehadiran)**, tahap 10 (DSS & EWS), dan tahap 11 (activity log / audit trail) selesai (setup dasar, auth/RBAC/device binding, seed, master data Admin, presensi geolokasi, pengajuan/daftar/verifikasi izin dengan state machine, job penandaan absen otomatis + pemicu manual, matriks monitoring presensi harian binaan, endpoint santri kritis dengan rasio/streak EWS, serta interceptor audit + endpoint daftar log untuk Admin). **Tahap 12 (rekap Admin & grafik dashboard tren kehadiran) selesai.** P1 (env, Swagger, throttler) juga sudah beres. Berikutnya tahap 6 (Riwayat dan ringkasan hari ini). Sisa pekerjaan besar: riwayat, lampiran izin (MinIO), testing, dan Docker aplikasi.
+Tahap 1 sampai 5 dan tahap 7 sampai 12 selesai (tahap 7 tanpa lampiran MinIO). P1 (env, Swagger, throttler) juga sudah beres. Sisa yang masih terbuka bersifat opsional: tahap 6 (riwayat & ringkasan hari ini), lampiran izin (MinIO), Docker aplikasi, dan e2e testing.
 
 ## Status 14 Tahap Backend
 
@@ -96,9 +96,10 @@ Tahap 1 sampai 5, tahap 7 (izin, tanpa upload lampiran), tahap 8 (scheduled job 
 - ✅ Respons `POST /v1/presensi` kini memuat `nama_sholat` (additive) supaya teks log tidak butuh query tambahan
 - ✅ 20 unit test di **satu suite** `src/activity-log/activity-log.spec.ts` (tiga blok: password/device_id tidak pernah masuk log, gagal menulis log tidak menggagalkan request, filter & pagination) + tes manual curl ulang pasca penyederhanaan struktur (total 13 suite, 148 test): tiap aksi tercatat dengan teks persis sama, login gagal 4 kode error, grep sensitif 0, 401/403, filter, pagination, `from`/`to`, potong username 150 → 100, GET tanpa log
 
-**12. Rekap Admin dan grafik** ⬜
-- ⬜ Rekap global
-- ⬜ Endpoint grafik tren kehadiran Admin
+**12. Rekap Admin dan grafik** ✅
+- ✅ Rekap global (`GET /v1/admin/rekap`)
+- ✅ Endpoint grafik tren kehadiran Admin (`GET /v1/admin/dashboard/tren-kehadiran?hari=7`)
+- ✅ Endpoint grafik tren kehadiran Musyrif (`GET /v1/musyrif/dashboard/tren-kehadiran?hari=7`)
 
 **13. Testing** ⬜
 - ⬜ Konfigurasi Jest (`moduleNameMapper`), ganti e2e bawaan
@@ -111,12 +112,12 @@ Tahap 1 sampai 5, tahap 7 (izin, tanpa upload lampiran), tahap 8 (scheduled job 
 
 ## Urutan Pengerjaan Berikutnya
 
-1. Tahap 6 riwayat dan ringkasan
-2. Tahap 7 lampiran izin (MinIO) — bagian izin sudah selesai
-3. Tahap 13 testing (unit test inti sudah dimulai di tahap 5, EWS di tahap 10, monitoring di tahap 9, activity log di tahap 11, dashboard tren di tahap 12)
-4. Tahap 14 Docker aplikasi
+1. Tahap 6 riwayat dan ringkasan (opsional)
+2. Tahap 7 lampiran izin MinIO (opsional)
+3. Tahap 13 testing — unit test inti sudah dimulai di tahap 5, EWS di tahap 10, monitoring di tahap 9, activity log di tahap 11, dashboard tren di tahap 12 (opsional)
+4. Tahap 14 Docker aplikasi (opsional)
 
-Jika waktu terbatas, potong dari bawah. Yang wajib: tahap 6 (izin, scheduled job, monitoring, DSS/EWS, dan activity log sudah selesai; lampiran MinIO boleh menyusul). Tahap 13 cukup unit test inti. Tahap 14 paling akhir.
+Jika waktu terbatas, semua tahap di atas dapat ditunda atau dipotong. Inti fungsional (tahap 1–5 dan 7–12) sudah selesai.
 
 Sebelum tahap 13, bereskan backlog P2 no. 10 (sisa mengganti e2e bawaan — file `test/app.e2e-spec.ts` dan `test/jest-e2e.json` sudah dihapus karena butuh database yang tidak tersedia di lingkungan test; catat di laporan akhir).
 
@@ -133,9 +134,9 @@ Sebelum tahap 13, bereskan backlog P2 no. 10 (sisa mengganti e2e bawaan — file
 | No | Item | Status | Catatan |
 |---|---|---|---|
 | 9 | Endpoint reset `device_id` | ✅ | Selesai di tahap 4, khusus Admin. Hak akses Musyrif untuk santri binaannya masih dipertimbangkan |
-| 10 | Konfigurasi Jest dan ganti e2e bawaan | 🟡 | Unit test jalan (22 test: tahap 5 + guard auth). `moduleNameMapper` untuk `@src/*` dan `@generated/*` ditambahkan di `package.json`. Sisa: ganti/stub file e2e bawaan (`test/`) sebelum tahap 13 |
+| 10 | Konfigurasi Jest dan ganti e2e bawaan | ✅ | `moduleNameMapper` untuk `@src/*` dan `@generated/*` ditambahkan di `package.json`. File e2e bawaan (`test/app.e2e-spec.ts`, `test/jest-e2e.json`) dihapus (butuh database, tidak tersedia di lingkungan test; commit 3791df2) |
 | 11 | Sinkronkan dokumen | ✅ | `API_CONTRACT.md`, `DATABASE_SCHEMA.md`, `README.md`, `FRONTEND_GUIDE.md` sudah disinkronkan dengan kode |
-| 12 | Pertimbangkan hapus `--fix` dari script `lint` | ⬜ | `--fix` mengubah file saat lint dijalankan |
+| 12 | Pertimbangkan hapus `--fix` dari script `lint` | ✅ | `--fix` dihapus dari script lint (commit 8ede3aa) |
 
 ## Dokumen yang Sudah Disinkronkan
 
