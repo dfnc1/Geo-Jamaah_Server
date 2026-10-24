@@ -1,4 +1,4 @@
-import { Body, Controller, HttpStatus, Post, Req } from '@nestjs/common';
+import { Body, Controller, Get, HttpStatus, Post, Req } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
@@ -7,6 +7,7 @@ import {
   ApiExtraModels,
   ApiForbiddenResponse,
   ApiNotFoundResponse,
+  ApiOkResponse,
   ApiOperation,
   ApiTags,
   ApiUnauthorizedResponse,
@@ -15,8 +16,10 @@ import { Role } from '@generated/prisma/enums';
 import { Roles } from '@src/auth/decorators/roles.decorator';
 import { Audit } from '@src/activity-log/activity-log.interceptor';
 import { PresensiService } from './presensi.service';
+import { HariIniService } from './hari-ini.service';
 import { CreatePresensiDto } from './dto/create-presensi.dto';
 import { PresensiDto } from './dto/presensi.dto';
+import { HariIniResponseDto } from './dto/hari-ini.dto';
 import {
   errorSchema,
   forbiddenResponse,
@@ -32,11 +35,14 @@ interface RequestWithUser {
 
 @ApiTags('Presensi')
 @ApiBearerAuth('access-token')
-@ApiExtraModels(PresensiDto)
+@ApiExtraModels(PresensiDto, HariIniResponseDto)
 @Roles(Role.Mahasantri)
 @Controller('presensi')
 export class PresensiController {
-  constructor(private readonly presensiService: PresensiService) {}
+  constructor(
+    private readonly presensiService: PresensiService,
+    private readonly hariIniService: HariIniService,
+  ) {}
 
   @Post()
   // Contoh BR-11: "Presensi Subuh berhasil, jarak 23 m" (jarak dibulatkan).
@@ -97,5 +103,34 @@ export class PresensiController {
     @Req() req: RequestWithUser,
   ): Promise<PresensiDto> {
     return this.presensiService.create(req.user!.sub, dto);
+  }
+
+  @Get('hari-ini')
+  @ApiOperation({
+    summary: 'Ringkasan presensi hari ini',
+    description:
+      'Hanya Mahasantri. Mengembalikan tanggal WIB hari ini, masjid utama ' +
+      '(deterministik: nama lalu id menaik; null jika belum ada masjid), dan ' +
+      'semua jadwal sholat beserta status presensi (`Hadir` | `Tidak_Hadir` | ' +
+      '`Izin` | `Manual` | `Belum`) dan flag `sedang_dalam_window` ' +
+      '(jam server WIB, inklusif di kedua batas). ' +
+      'Maksimal 3 query (nim → masjid + jadwal sejajar).',
+  })
+  @ApiOkResponse({
+    description: 'Ringkasan presensi hari ini berhasil diambil',
+    schema: successSchema(modelRef(HariIniResponseDto), 200, 'Ringkasan presensi hari ini'),
+  })
+  @ApiUnauthorizedResponse(unauthorizedResponse())
+  @ApiForbiddenResponse(forbiddenResponse())
+  @ApiNotFoundResponse({
+    description: 'Profil Mahasantri tidak ditemukan (ERR_MAHASANTRI_NOT_FOUND)',
+    schema: errorSchema({
+      statusCode: 404,
+      message: 'Data mahasantri tidak ditemukan',
+      error: 'ERR_MAHASANTRI_NOT_FOUND',
+    }),
+  })
+  async hariIni(@Req() req: RequestWithUser): Promise<HariIniResponseDto> {
+    return this.hariIniService.ringkasan(req.user!.sub);
   }
 }
