@@ -27,13 +27,30 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: JwtPayload) {
-    if (payload.role === Role.Mahasantri) {
-      const santri = await this.prismaService.mahasantri.findUnique({
-        where: { id_pengguna: payload.sub },
-        select: { status_aktif: true },
-      });
+    const user = await this.prismaService.pengguna.findUnique({
+      where: { id_pengguna: payload.sub },
+      select: {
+        id_pengguna: true,
+        username: true,
+        role: true,
+        mahasantri: {
+          select: { status_aktif: true },
+        },
+      },
+    });
 
-      if (!santri || !santri.status_aktif) {
+    if (!user) {
+      this.logger.warn(
+        `Token ditolak: pengguna ${payload.sub} tidak ditemukan di database`,
+      );
+      throw new UnauthorizedException({
+        message: 'Token tidak valid atau akun tidak ditemukan',
+        error: 'ERR_UNAUTHORIZED',
+      });
+    }
+
+    if (user.role === Role.Mahasantri) {
+      if (!user.mahasantri || !user.mahasantri.status_aktif) {
         this.logger.warn(
           `Token ditolak: akun Mahasantri ${payload.sub} tidak aktif atau profil tidak ditemukan`,
         );
@@ -45,9 +62,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     }
 
     return {
-      sub: payload.sub,
-      username: payload.username,
-      role: payload.role,
+      sub: user.id_pengguna,
+      username: user.username,
+      role: user.role,
     };
   }
 }

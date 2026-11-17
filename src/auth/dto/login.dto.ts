@@ -19,9 +19,11 @@ export class LoginDto {
     example: 'dev-a1b2c3',
     description:
       'ID perangkat. Wajib diisi untuk role Mahasantri (device binding), diabaikan untuk role lain.',
+    maxLength: 100,
   })
   @IsOptional()
-  @IsString()
+  @IsString({ message: 'device_id harus berupa teks' })
+  @MaxLength(100, { message: 'device_id maksimal 100 karakter' })
   device_id?: string;
 }
 

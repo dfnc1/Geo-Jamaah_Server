@@ -43,7 +43,7 @@ Kirim token di header: `Authorization: Bearer <access_token>`.
   { "username": "ahmad_fauzi", "password": "rahasia123", "device_id": "dev-a1b2c3" }
   ```
   - `username`, `password`: wajib (maks 100 karakter).
-  - `device_id`: **wajib hanya untuk role Mahasantri**, diabaikan untuk Musyrif dan Admin. Bersifat opsional di schema, tapi di-level service akan ditolak untuk Mahasantri yang belum mengirimnya.
+  - `device_id`: **wajib hanya untuk role Mahasantri** (maks 100 karakter), diabaikan untuk Musyrif dan Admin. Bersifat opsional di schema, tapi di-level service akan ditolak untuk Mahasantri yang belum mengirimnya.
 - 201:
   ```json
   {
