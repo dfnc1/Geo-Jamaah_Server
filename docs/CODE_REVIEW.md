@@ -176,3 +176,9 @@ Sebelum tahap 13, bereskan backlog P2 no. 10 (sisa mengganti e2e bawaan — file
   - **Keputusan anti-grep sensitif**: frasa login gagal memakai "kata sandi" dan "perangkat" sehingga grep harfiah `%password%` dan `%device_id%` di `activity_logs` = 0 baris.
 - [x] Tahap 12 rekap Admin dan grafik dashboard (`GET /v1/musyrif/dashboard/tren-kehadiran?hari=7`, `GET /v1/admin/dashboard/tren-kehadiran?hari=7`, `GET /v1/admin/rekap`; fungsi murni `hitungTrenHarian` di `src/dashboard/dashboard-tren.ts` + unit test; satu query agregasi `groupBy` tanpa loop per hari; hari tanpa data bernilai 0; `persen_hadir` satu desimal null bila penyebut 0)
 - [x] Tahap 6 ringkasan presensi hari ini (`GET /v1/presensi/hari-ini`: status `Hadir`/`Tidak_Hadir`/`Izin`/`Manual`/`"Belum"`, `sedang_dalam_window` jam server WIB batas inklusif, masjid utama, 3 query tanpa N+1, 18 unit test)
+- [x] Hardening Audit Keamanan (Security Audit Phase):
+  - Bind port PostgreSQL di `docker-compose.yaml` ke `127.0.0.1:5432:5432` (mencegah eksposur ke `0.0.0.0`).
+  - Verifikasi eksistensi dan status pengguna di database pada `JwtStrategy.validate()` untuk semua role (instant token revocation saat akun dihapus/dinonaktifkan; 1 query efisien).
+  - Pembatasan panjang `@MaxLength(100)` pada `device_id` di `LoginDto` (mencegah payload berlebih ke kolom TEXT/index B-tree).
+  - Isolasi waktu sistem (`jest.useFakeTimers()`) pada `src/dss/dss.service.spec.ts` untuk mencegah flakiness rentang 30 hari.
+  - Penambahan unit test `src/auth/strategies/jwt.strategy.spec.ts` (4 test baru; total 17 suite, 177 test PASS).
