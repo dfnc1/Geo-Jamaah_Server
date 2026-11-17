@@ -49,6 +49,8 @@ describe('DssService', () => {
   let warnSpy: jest.SpyInstance;
 
   beforeEach(() => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-10-18T10:00:00Z'));
     prisma = createPrismaMock();
     config = { get: jest.fn().mockReturnValue(undefined) };
     service = new DssService(
@@ -61,6 +63,7 @@ describe('DssService', () => {
 
   afterEach(() => {
     warnSpy.mockRestore();
+    jest.useRealTimers();
   });
 
   it('404 ERR_MUSYRIF_NOT_FOUND bila token musyrif tanpa profil', async () => {
